@@ -1,0 +1,29 @@
+{
+  "mcpServers": {
+    "devfolio": {
+      "type": "http",
+      "url": "https://mcp.devfolio.co/mcp",
+      "auth": {
+        "CLIENT_ID": "PaV3N4l1Ibs6GyamI6zLa72uyWQg0klOQVJ0QGnoUoC",
+        "scopes": [
+          "openid",
+          "profile",
+          "email",
+          "offline_access",
+          "profile.read",
+          "hackathons.read",
+          "projects.read",
+          "projects.write"
+        ]
+      }
+    },
+    "prava": {
+      "type": "http",
+      "url": "https://mcp.pay.prava.space/mcp"
+    },
+    "prava-docs": {
+      "type": "http",
+      "url": "https://docs.prava.space/mcp"
+    }
+  }
+}
