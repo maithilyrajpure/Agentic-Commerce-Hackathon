@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+        env:
+          NODE_ENV: test
+          STORE_DRIVER: memory
+          CALLBACK_SIGNING_SECRET: ci-secret-value-not-used-in-prod
+      - run: npm run build
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # The handbook is explicit that credentials must not reach the repo, and
+      # a sandbox card committed once is a card that stays in git history.
+      - name: Fail on committed card numbers or .env files
+        run: |
+          if git ls-files | grep -E '^\.env$'; then echo "::error::.env is tracked"; exit 1; fi
+          if grep -rInE '\b4[0-9]{15}\b' --include='*.ts' --include='*.js' --include='*.json' --include='*.md' \
+             --exclude-dir=node_modules . | grep -v '4111111111111111'; then
+            echo "::error::possible card number committed"; exit 1
+          fi
+          echo "no credentials found in tracked files"

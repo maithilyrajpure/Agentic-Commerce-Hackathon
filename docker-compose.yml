@@ -1,0 +1,16 @@
+services:
+  mandate-manager:
+    build: .
+    ports:
+      - "${PORT:-3100}:3100"
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      PORT: 3100
+      STORE_FILE_PATH: /app/.data/mandates.json
+    volumes:
+      - mandate-data:/app/.data
+    restart: unless-stopped
+
+volumes:
+  mandate-data:

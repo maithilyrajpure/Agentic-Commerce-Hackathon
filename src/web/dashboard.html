@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Mandate ledger</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/*
+  Design note. This is a ledger, not a SaaS dashboard, and it is read by someone
+  deciding whether to let software spend company money. So it borrows from the
+  things that already do that job well: an account statement, a permit book, a
+  stamped authorization slip.
+
+  The signature element is the guardrail band — the amber-ruled strip on every
+  mandate stating exactly what the released credential can do. It is the same
+  component the approver sees on the passkey screen and on the receipt, so the
+  object never changes shape as it moves through the flow.
+
+  Amber is reserved for limits and caps. Teal means authority released, carmine
+  means authority withdrawn. Nothing is coloured for decoration.
+*/
+:root{
+  --ink:#16202B; --ink-2:#40525F; --ink-3:#7B8B98; --ink-4:#A9B7C2;
+  --paper:#E4EAEF; --card:#FFFFFF; --rule:#C6D2DB; --rule-soft:#E2E9EE;
+  --limit:#B4530A; --limit-soft:#FBEEE2;
+  --ok:#0E7C66; --ok-soft:#E3F1ED;
+  --stop:#A3283C; --stop-soft:#F8E6E9;
+  --wait:#1F5E8C; --wait-soft:#E4EFF7;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:'IBM Plex Sans',system-ui,-apple-system,sans-serif;
+  background:var(--paper); color:var(--ink); line-height:1.5;
+  padding:28px 20px 60px;
+}
+.wrap{max-width:940px;margin:0 auto}
+
+/* ---------- masthead ---------- */
+header.top{
+  display:flex; align-items:flex-end; justify-content:space-between;
+  gap:20px; flex-wrap:wrap; padding-bottom:14px;
+  border-bottom:2px solid var(--ink); margin-bottom:2px;
+}
+.org{font-family:'Archivo',sans-serif;font-weight:800;font-size:15px;letter-spacing:.16em;text-transform:uppercase}
+.title{font-family:'Archivo',sans-serif;font-weight:600;font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-3)}
+.pulse{display:inline-flex;align-items:center;gap:7px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-3)}
+.pulse i{width:6px;height:6px;border-radius:50%;background:var(--ok);animation:blip 2s ease-in-out infinite}
+@keyframes blip{0%,100%{opacity:1}50%{opacity:.2}}
+.rule-thin{height:1px;background:var(--ink);opacity:.25;margin-bottom:22px}
+
+/* ---------- ledger totals ---------- */
+.totals{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--rule);border:1px solid var(--rule);margin-bottom:14px}
+.total{background:var(--card);padding:14px 16px}
+.total dt{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);font-family:'Archivo',sans-serif;font-weight:700;margin-bottom:5px}
+.total dd{font-family:'JetBrains Mono',monospace;font-size:22px;font-weight:500;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.total.committed dd{color:var(--limit)}
+.total.settled dd{color:var(--ok)}
+.total.blocked dd{color:var(--stop)}
+.total small{display:block;font-family:'IBM Plex Sans',sans-serif;font-size:11px;color:var(--ink-3);margin-top:3px;letter-spacing:0}
+
+.policy-strip{
+  font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-2);
+  background:var(--card);border:1px solid var(--rule);border-top:0;
+  padding:9px 16px;margin-bottom:22px;display:flex;gap:16px;flex-wrap:wrap
+}
+.policy-strip b{color:var(--ink);font-weight:500}
+
+/* ---------- compose ---------- */
+.compose{display:flex;gap:8px;margin-bottom:26px;flex-wrap:wrap}
+.compose input{
+  flex:1;min-width:260px;font-family:'IBM Plex Sans',sans-serif;font-size:15px;
+  padding:13px 15px;border:1px solid var(--rule);border-radius:3px;background:var(--card);color:var(--ink)
+}
+.compose input:focus{outline:2px solid var(--ink);outline-offset:-1px;border-color:var(--ink)}
+.compose button{
+  font-family:'IBM Plex Sans',sans-serif;font-size:15px;font-weight:600;padding:13px 24px;
+  background:var(--ink);color:#fff;border:0;border-radius:3px;cursor:pointer
+}
+.compose button:hover{background:#0C1720}
+.compose button:disabled{background:var(--ink-3);cursor:progress}
+.hint{font-size:12px;color:var(--ink-3);margin:-18px 0 26px}
+.hint b{font-family:'JetBrains Mono',monospace;font-weight:400;color:var(--ink-2);cursor:pointer;border-bottom:1px dotted var(--ink-4)}
+.hint b:hover{color:var(--ink)}
+
+/* ---------- mandate slips ---------- */
+.slips{display:flex;flex-direction:column;gap:12px}
+.slip{background:var(--card);border:1px solid var(--rule);border-radius:3px;overflow:hidden;animation:rise .22s ease-out}
+@keyframes rise{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+.slip-head{display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:1px solid var(--rule-soft);flex-wrap:wrap}
+.id{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-3)}
+.state{
+  font-family:'Archivo',sans-serif;font-size:10px;font-weight:700;letter-spacing:.12em;
+  text-transform:uppercase;padding:4px 9px;border-radius:2px
+}
+.state.wait{background:var(--wait-soft);color:var(--wait)}
+.state.live{background:var(--limit-soft);color:var(--limit)}
+.state.ok{background:var(--ok-soft);color:var(--ok)}
+.state.stop{background:var(--stop-soft);color:var(--stop)}
+.state.dead{background:#EEF2F5;color:var(--ink-3)}
+.when{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-4)}
+.slip-body{padding:15px 16px}
+.headline{display:flex;align-items:baseline;gap:11px;flex-wrap:wrap;margin-bottom:3px}
+.amt{font-family:'JetBrains Mono',monospace;font-size:23px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.merchant{font-family:'Archivo',sans-serif;font-size:17px;font-weight:700}
+.purpose{font-size:14px;color:var(--ink-2);margin-bottom:13px}
+.who{font-size:12px;color:var(--ink-3);font-family:'JetBrains Mono',monospace}
+
+/* the signature element */
+.band{border-left:3px solid var(--limit);background:linear-gradient(90deg,#FCFAF7,#FAFCFD 60%);padding:9px 13px;margin:12px 0;display:flex;gap:18px;flex-wrap:wrap;align-items:center}
+.band span{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--ink-2);white-space:nowrap}
+.band span b{color:var(--ink);font-weight:500}
+.pips{display:inline-flex;gap:3px;vertical-align:-1px}
+.pip{width:6px;height:6px;border-radius:50%;background:var(--limit)}
+.pip.spent{background:var(--rule)}
+.band.dead{border-left-color:var(--ink-4);background:#F6F8FA;opacity:.65}
+.band.dead span b{color:var(--ink-3)}
+
+.reasons{list-style:none;margin:11px 0 0}
+.reasons li{font-size:13px;color:var(--ink-2);padding:4px 0 4px 13px;border-left:2px solid var(--rule-soft)}
+.gateway{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--ink-2);background:#F6F8FA;border:1px solid var(--rule-soft);padding:8px 11px;margin-top:11px;word-break:break-word}
+
+.acts{display:flex;gap:7px;margin-top:14px;flex-wrap:wrap}
+.acts button{font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:600;padding:8px 15px;border-radius:3px;border:1px solid var(--rule);background:var(--card);color:var(--ink-2);cursor:pointer;transition:background .13s,border-color .13s,color .13s}
+.acts button:hover{border-color:var(--ink-3)}
+.acts button.go{background:var(--ok);border-color:var(--ok);color:#fff}
+.acts button.go:hover{background:#0B6753}
+.acts button.kill:hover{background:var(--stop-soft);border-color:var(--stop);color:var(--stop)}
+.acts button:disabled{opacity:.5;cursor:progress}
+
+.empty{background:var(--card);border:1px dashed var(--rule);padding:44px 24px;text-align:center}
+.empty h2{font-family:'Archivo',sans-serif;font-size:17px;font-weight:700;margin-bottom:7px}
+.empty p{font-size:14px;color:var(--ink-3)}
+.err{background:var(--stop-soft);border:1px solid var(--stop);color:var(--stop);padding:11px 15px;font-size:13px;margin-bottom:16px;border-radius:3px}
+.sim{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--limit);border:1px solid var(--limit);padding:2px 6px;border-radius:2px}
+@media(max-width:640px){.totals{grid-template-columns:1fr}.amt{font-size:20px}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="org" id="org">—</div>
+      <div class="title">Mandate ledger</div>
+    </div>
+    <div class="pulse"><i></i><span id="pulse">connecting</span></div>
+  </header>
+  <div class="rule-thin"></div>
+
+  <div id="error" class="err" hidden></div>
+
+  <dl class="totals">
+    <div class="total committed"><dt>Committed</dt><dd id="t-committed">$0.00</dd><small>authorized, not yet settled</small></div>
+    <div class="total settled"><dt>Settled</dt><dd id="t-settled">$0.00</dd><small>paid at the merchant</small></div>
+    <div class="total blocked"><dt>Stopped</dt><dd id="t-blocked">$0.00</dd><small>refused or withdrawn</small></div>
+  </dl>
+  <div class="policy-strip" id="policy">loading policy…</div>
+
+  <form class="compose" id="compose" autocomplete="off">
+    <input id="text" placeholder="Tell the agent what you need" aria-label="Purchase request">
+    <button type="submit" id="send">Send</button>
+  </form>
+  <p class="hint">Try
+    <b data-fill="Figma, $45/mo for 2 designers">Figma, $45/mo for 2 designers</b> ·
+    <b data-fill="Top up OpenAI credits by $20">$20 of OpenAI credits</b> ·
+    <b data-fill="Team dinner at Olive, $80">team dinner, $80</b>
+  </p>
+
+  <div class="slips" id="slips"></div>
+</div>
+
+<script>
+(function(){
+  'use strict';
+  var usd = function(c){ return '$' + (Math.trunc(Math.abs(c||0))/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+  var esc = function(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); };
+
+  var STATE_CLASS = {
+    DRAFT:'dead', PENDING_APPROVAL:'wait', AUTHORIZED:'live', PROVISIONED:'live',
+    EXECUTING:'live', COMPLETED:'ok', DECLINED:'stop', REJECTED:'stop',
+    REVOKED:'stop', FAILED:'stop', EXPIRED:'dead'
+  };
+  var DEAD = ['COMPLETED','DECLINED','REJECTED','REVOKED','FAILED','EXPIRED'];
+
+  var els = {
+    org:document.getElementById('org'), pulse:document.getElementById('pulse'),
+    error:document.getElementById('error'), policy:document.getElementById('policy'),
+    slips:document.getElementById('slips'), text:document.getElementById('text'),
+    send:document.getElementById('send'), compose:document.getElementById('compose'),
+    committed:document.getElementById('t-committed'), settled:document.getElementById('t-settled'),
+    blocked:document.getElementById('t-blocked')
+  };
+
+  function fail(msg){
+    els.error.textContent = msg;
+    els.error.hidden = false;
+    els.pulse.textContent = 'offline';
+  }
+  function clearFail(){ els.error.hidden = true; }
+
+  async function api(path, options){
+    var res = await fetch(path, options);
+    var body = await res.json().catch(function(){ return {}; });
+    if(!res.ok) throw new Error(body.message || ('Request failed with ' + res.status));
+    return body;
+  }
+
+  function timeAgo(iso){
+    var s = Math.max(0, Math.round((Date.now() - new Date(iso).getTime())/1000));
+    if(s < 60) return s + 's ago';
+    if(s < 3600) return Math.round(s/60) + 'm ago';
+    return Math.round(s/3600) + 'h ago';
+  }
+
+  function band(m){
+    var dead = DEAD.indexOf(m.state) !== -1;
+    var pips = '';
+    for(var i = 0; i < Math.min(m.scope.maxUses, 8); i++){
+      pips += '<span class="pip' + (i < m.scope.usesConsumed ? ' spent' : '') + '"></span>';
+    }
+    var mins = Math.max(0, Math.round((new Date(m.scope.expiresAt).getTime() - Date.now())/60000));
+    return '<div class="band' + (dead ? ' dead' : '') + '">'
+      + '<span>merchant <b>' + esc(m.scope.merchant) + '</b> only</span>'
+      + '<span>cap <b>' + usd(m.scope.perTransactionCapCents) + '</b></span>'
+      + '<span>uses <span class="pips">' + pips + '</span> <b>' + (m.scope.maxUses - m.scope.usesConsumed) + ' left</b></span>'
+      + '<span>' + (dead ? 'closed' : 'expires <b>' + mins + ' min</b>') + '</span>'
+      + (m.prava.cardLast4 ? '<span>card <b>···' + esc(m.prava.cardLast4) + '</b></span>' : '')
+      + '</div>';
+  }
+
+  function slip(m){
+    var reasons = (m.policyReasons || []).map(function(r){ return '<li>' + esc(r) + '</li>'; }).join('');
+    var acts = '';
+    if(m.state === 'PENDING_APPROVAL'){
+      acts = '<button class="go" data-act="approve" data-id="' + m.id + '">Approve</button>'
+           + '<button data-act="decline" data-id="' + m.id + '">Decline</button>';
+    } else if(['AUTHORIZED','PROVISIONED','EXECUTING'].indexOf(m.state) !== -1){
+      acts = '<button class="kill" data-act="revoke" data-id="' + m.id + '">Revoke now</button>';
+    }
+    var simulated = m.prava.sessionId && String(m.prava.sessionId).indexOf('sim_') === 0;
+
+    return '<article class="slip">'
+      + '<div class="slip-head">'
+        + '<span class="state ' + (STATE_CLASS[m.state] || 'dead') + '">' + esc(m.state.replace(/_/g,' ')) + '</span>'
+        + '<span class="id">' + esc(m.id) + '</span>'
+        + (simulated ? '<span class="sim">simulated session</span>' : '')
+        + '<span class="when">' + timeAgo(m.updatedAt) + '</span>'
+      + '</div>'
+      + '<div class="slip-body">'
+        + '<div class="headline"><span class="amt">' + usd(m.amountCents) + '</span><span class="merchant">' + esc(m.scope.merchant) + '</span></div>'
+        + '<p class="purpose">' + esc(m.purpose) + (m.seats ? ' · ' + m.seats + ' seats' : '') + '</p>'
+        + '<p class="who">from ' + esc(m.requesterPhone) + (m.authorizedBy ? ' · approved by ' + esc(m.authorizedBy) : '') + '</p>'
+        + band(m)
+        + (reasons ? '<ul class="reasons">' + reasons + '</ul>' : '')
+        + (m.outcome && m.outcome.gatewayMessage ? '<div class="gateway">' + esc(m.outcome.gatewayMessage) + '</div>' : '')
+        + (acts ? '<div class="acts">' + acts + '</div>' : '')
+      + '</div>'
+    + '</article>';
+  }
+
+  function render(mandates, summary){
+    els.committed.textContent = usd(summary.committedCents);
+    els.settled.textContent = usd(summary.settledCents);
+    els.blocked.textContent = usd(summary.blockedCents);
+
+    if(!mandates.length){
+      els.slips.innerHTML = '<div class="empty"><h2>No mandates yet</h2>'
+        + '<p>Send a request above, or text the agent. Every decision it makes lands here.</p></div>';
+      return;
+    }
+    els.slips.innerHTML = mandates.map(slip).join('');
+  }
+
+  async function refresh(){
+    try{
+      var results = await Promise.all([api('/api/mandates?limit=40'), api('/api/summary')]);
+      clearFail();
+      els.org.textContent = results[1].org;
+      els.pulse.textContent = 'live';
+      render(results[0].mandates, results[1].summary);
+    }catch(err){
+      fail(err.message + ' — is the server running?');
+    }
+  }
+
+  async function loadPolicy(){
+    try{
+      var p = await api('/api/policy');
+      els.policy.innerHTML = p.summary.map(function(s){ return '<span>' + esc(s) + '</span>'; }).join('')
+        + '<span>policy <b>' + esc(p.version) + '</b></span>';
+    }catch(e){ els.policy.textContent = 'policy unavailable'; }
+  }
+
+  els.compose.addEventListener('submit', async function(ev){
+    ev.preventDefault();
+    var text = els.text.value.trim();
+    if(!text) return;
+    els.send.disabled = true; els.send.textContent = 'Thinking…';
+    try{
+      await api('/api/simulate/message', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({ from:'+15550100200', text:text })
+      });
+      els.text.value = '';
+      clearFail();
+      await refresh();
+    }catch(err){ fail(err.message); }
+    finally{ els.send.disabled = false; els.send.textContent = 'Send'; }
+  });
+
+  document.querySelectorAll('[data-fill]').forEach(function(b){
+    b.addEventListener('click', function(){ els.text.value = b.getAttribute('data-fill'); els.text.focus(); });
+  });
+
+  els.slips.addEventListener('click', async function(ev){
+    var btn = ev.target.closest('button[data-act]');
+    if(!btn) return;
+    var act = btn.getAttribute('data-act');
+    if(act === 'revoke' && !confirm('Revoke this mandate? The card stops working immediately, even mid-checkout.')) return;
+    btn.disabled = true; btn.textContent = 'Working…';
+    try{
+      await api('/api/mandates/' + encodeURIComponent(btn.getAttribute('data-id')) + '/' + act, { method:'POST' });
+      clearFail();
+      await refresh();
+    }catch(err){ fail(err.message); btn.disabled = false; }
+  });
+
+  loadPolicy();
+  refresh();
+  setInterval(refresh, 3000);
+})();
+</script>
+</body>
+</html>
