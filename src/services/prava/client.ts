@@ -98,7 +98,7 @@ export class PravaClient {
   }
 
   /** The single purchase_context entry Prava expects, built from a mandate. */
-  private purchaseContext(mandate: Mandate): PurchaseContextEntry[] {
+  private purchaseContext(mandate: Mandate, merchant: MerchantRecord): PurchaseContextEntry[] {
     const minutes = Math.max(
       1,
       Math.round((new Date(mandate.scope.expiresAt).getTime() - Date.now()) / 60_000),
@@ -106,10 +106,10 @@ export class PravaClient {
     return [
       {
         merchant_details: {
-          name: visaSafeName(this.merchant.name),
-          url: this.merchant.url,
-          country_code_iso2: this.merchant.country,
-          category: this.merchant.category.slice(0, 100),
+          name: visaSafeName(merchant.name),
+          url: merchant.url,
+          country_code_iso2: merchant.country,
+          category: merchant.category.slice(0, 100),
         },
         product_details: [
           {
@@ -137,7 +137,11 @@ export class PravaClient {
    * the card network, not merely in our policy engine. A recurring frequency
    * forces `listed` anyway — sending `any` returns MANDATE_RECURRING_MUST_BE_SCOPED.
    */
-  async createMandateSession(mandate: Mandate, callbackUrl?: string): Promise<MandateSessionResult> {
+  async createMandateSession(
+    mandate: Mandate,
+    callbackUrl?: string,
+    merchant: MerchantRecord = this.merchant,
+  ): Promise<MandateSessionResult> {
     // One-time mandates are clamped to 7 days upstream; recurring get horizons.
     const frequency = mandate.scope.recurrence === 'annual' ? 'yearly' : mandate.scope.recurrence;
 
@@ -146,11 +150,11 @@ export class PravaClient {
       user_email: env.REQUESTER_EMAIL,
       total_amount: centsToAmountString(mandate.scope.perTransactionCapCents),
       currency: mandate.currency,
-      purchase_context: this.purchaseContext(mandate),
+      purchase_context: this.purchaseContext(mandate, merchant),
       integration_type: 'full_checkout',
       external_order_ref: mandate.id,
       description: mandate.purpose.slice(0, 255),
-      user_country_code_iso2: this.merchant.country,
+      user_country_code_iso2: merchant.country,
       mandate_setup: {
         intent: 'mandate_setup',
         recurring_frequency: frequency,
@@ -249,11 +253,15 @@ export class PravaClient {
    * enforcing the cap, which is the strongest possible demonstration that the
    * limit is real and not merely our policy engine's opinion.
    */
-  async chargeMandate(pravaMandateId: string, mandate: Mandate): Promise<ChargeResult> {
+  async chargeMandate(
+    pravaMandateId: string,
+    mandate: Mandate,
+    merchant: MerchantRecord = this.merchant,
+  ): Promise<ChargeResult> {
     const payload: ChargeMandateRequest = {
       amount: centsToAmountString(mandate.amountCents),
       reference: `${mandate.id}:${mandate.scope.usesConsumed}`,
-      purchase_context: this.purchaseContext(mandate),
+      purchase_context: this.purchaseContext(mandate, merchant),
     };
 
     if (!capabilities.prava) {

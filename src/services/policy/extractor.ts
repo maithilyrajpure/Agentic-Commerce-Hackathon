@@ -189,6 +189,14 @@ const MERCHANT_HINTS: Array<[RegExp, string, ExpenseCategory]> = [
   [/\bdatadog\b/i, 'Datadog', 'developer_tools'],
   [/\bsentry\b/i, 'Sentry', 'developer_tools'],
   [/littlebox/i, 'Littlebox India', 'office_supplies'],
+  // Merchants on the Prava registry. Without these the heuristic extractor
+  // returns "unknown" for them and policy refuses the request, so a books or
+  // luggage purchase never reaches the merchant router at all.
+  [/\boswaal\b/i, 'Oswaal Books', 'office_supplies'],
+  [/headphone ?zone/i, 'Headphone Zone', 'hardware'],
+  [/\bboat lifestyle\b|\bboat\b(?= ?(headphone|earbud|speaker|airdopes))/i, 'boAt Lifestyle', 'hardware'],
+  [/\bmokobara\b/i, 'Mokobara', 'travel'],
+  [/\bdeodap\b/i, 'DeoDap', 'office_supplies'],
 ];
 
 const CATEGORY_HINTS: Array<[RegExp, ExpenseCategory]> = [
@@ -196,10 +204,10 @@ const CATEGORY_HINTS: Array<[RegExp, ExpenseCategory]> = [
   [/\bsubscription\b|\bplan\b|\bseat\b|\blicen[cs]e\b/i, 'software_subscription'],
   [/\bserver\b|\bhosting\b|\bcloud\b|\bcompute\b/i, 'cloud_infrastructure'],
   [/\blunch\b|\bdinner\b|\bcoffee\b|\bmeal\b|\brestaurant\b|\bpizza\b/i, 'meals_entertainment'],
-  [/\bflight\b|\bhotel\b|\btravel\b|\bcab\b|\btaxi\b|\buber\b/i, 'travel'],
+  [/\bflight\b|\bhotel\b|\btravel\b|\bcab\b|\btaxi\b|\buber\b|\bluggage\b|\bsuitcase\b|\bbackpack\b|carry.?on/i, 'travel'],
   [/\bgift card\b|\bvoucher\b/i, 'gift_cards'],
-  [/\blaptop\b|\bmonitor\b|\bkeyboard\b|\bmacbook\b|\bgpu\b/i, 'hardware'],
-  [/\bstationery\b|\bnotebooks?\b|\bpens?\b|\bsupplies\b/i, 'office_supplies'],
+  [/\blaptop\b|\bmonitor\b|\bkeyboard\b|\bmacbook\b|\bgpu\b|\bheadphones?\b|\bearbuds?\b|\bearphones?\b|\bspeakers?\b/i, 'hardware'],
+  [/\bstationery\b|\bnotebooks?\b|\bpens?\b|\bsupplies\b|\btextbooks?\b|\bworkbooks?\b|\bbooks?\b/i, 'office_supplies'],
 ];
 
 export function heuristicExtraction(text: string, note?: string): ExpenseExtraction {

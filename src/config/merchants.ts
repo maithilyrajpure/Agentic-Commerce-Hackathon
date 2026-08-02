@@ -160,6 +160,112 @@ export function resolveMerchant(params: {
   return found;
 }
 
+
+/** Look a registry merchant up by stable id. Internal helper for routing. */
+function byId(id: string): MerchantRecord {
+  const found = MERCHANTS.find((m) => m.id === id);
+  if (!found) throw new Error(`merchant id "${id}" is missing from MERCHANTS`);
+  return found;
+}
+
+/**
+ * Keyword groups mapping a requested merchant, category, or free-text purpose
+ * onto the closest registry merchant. Order matters: specific product domains
+ * are tested before the broad B2B/tech bucket, whose words ("software", "seat",
+ * "subscription") are common enough to over-match otherwise.
+ *
+ * A SaaS vendor with no guest checkout (Figma, Vercel, OpenAI, ...) has nowhere
+ * to actually check out, so it lands in the B2B bucket — DeoDap — whose supplies
+ * catalogue reads plausibly as the same office spend. Nothing routes to a
+ * clothing store unless the request is genuinely about apparel.
+ */
+const ROUTES: Array<{ id: string; test: RegExp }> = [
+  {
+    id: 'oswaal_books',
+    test: /\b(book|books|ebook|textbook|workbook|stationery|study|learn(?:ing)?|educat|course|curriculum|exam|oswaal)\b/i,
+  },
+  {
+    id: 'headphone_zone',
+    test: /\b(headphone|headphones|earphone|earbud|earbuds|audio|speaker|soundbar|iem|dac|amp|electronics|gadget|charger|cable|hardware|laptop|monitor|keyboard|mouse|macbook|gpu)\b/i,
+  },
+  {
+    id: 'mokobara',
+    test: /\b(luggage|suitcase|trolley|duffel|duffle|backpack|carry.?on|travel|trip|flight|hotel|mokobara)\b/i,
+  },
+  {
+    id: 'littlebox_india',
+    test: /\b(apparel|clothing|clothes|fashion|dress|shirt|t.?shirt|tee|outfit|garment|wear|littlebox)\b/i,
+  },
+  {
+    id: 'deodap',
+    test: /\b(b2b|office|supplies|industrial|wholesale|bulk|deodap|saas|software|subscription|licen[cs]e|api|credit|credits|dev.?tools?|developer|cloud|infrastructure|hosting|seat|seats|plan|figma|vercel|openai|github|notion|slack|jetbrains|datadog|aws|stripe|linear|anthropic|zoom|atlassian|jira)\b/i,
+  },
+];
+
+/** Category -> registry merchant, used when no keyword hits. */
+const CATEGORY_ROUTES: Record<string, string> = {
+  software_subscription: 'deodap',
+  api_credits: 'deodap',
+  cloud_infrastructure: 'deodap',
+  developer_tools: 'deodap',
+  office_supplies: 'deodap',
+  gift_cards: 'deodap',
+  meals_entertainment: 'deodap',
+  hardware: 'headphone_zone',
+  travel: 'mokobara',
+  other: 'deodap',
+};
+
+/**
+ * Resolve the merchant a checkout should actually run against.
+ *
+ * In dev_store mode the storefront is always your own dev store — the only place
+ * a sandbox card can authorize — so the request text is ignored.
+ *
+ * In live_decline mode the target is chosen dynamically: an explicitly named
+ * registry merchant wins, otherwise the request is classified by keyword, then
+ * by category, and finally falls back to DeoDap (business supplies) rather than
+ * defaulting every purchase to a clothing store.
+ */
+export function routeMerchant(params: {
+  mode: CheckoutMode;
+  requestedMerchant?: string;
+  category?: string;
+  purpose?: string;
+  devStoreUrl: string;
+  devStoreName: string;
+}): MerchantRecord {
+  if (params.mode === 'dev_store') {
+    return resolveMerchant({
+      mode: 'dev_store',
+      merchantId: '',
+      devStoreUrl: params.devStoreUrl,
+      devStoreName: params.devStoreName,
+    });
+  }
+
+  const requested = (params.requestedMerchant ?? '').trim();
+
+  // 1. The requester literally named a merchant on the list.
+  if (requested && requested.toLowerCase() !== 'unknown') {
+    const direct = findMerchant(requested);
+    if (direct) return direct;
+  }
+
+  // 2. Classify by keyword over merchant + purpose + category.
+  const haystack = [requested, params.purpose ?? '', params.category ?? ''].join(' ').toLowerCase();
+  for (const route of ROUTES) {
+    if (route.test.test(haystack)) return byId(route.id);
+  }
+
+  // 3. Fall back on the declared category.
+  const byCategory = params.category ? CATEGORY_ROUTES[params.category] : undefined;
+  if (byCategory) return byId(byCategory);
+
+  // 4. Last resort: business supplies, never apparel.
+  return byId('deodap');
+}
+
 /** One line for the dashboard and the receipt, so the mode is never ambiguous. */
 export function describeMode(mode: CheckoutMode, merchant: MerchantRecord): string {
   return mode === 'dev_store'

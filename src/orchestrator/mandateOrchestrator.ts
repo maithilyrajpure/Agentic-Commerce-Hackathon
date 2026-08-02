@@ -17,7 +17,7 @@ import { logger, mandateLogger } from '../lib/logger.js';
 import { last4 } from '../lib/redact.js';
 import { getRepository } from '../store/index.js';
 import type { MandateRepository } from '../store/types.js';
-import { describeMode } from '../config/merchants.js';
+import { describeMode, routeMerchant, type MerchantRecord } from '../config/merchants.js';
 import { executeCheckout, type CheckoutResult } from '../services/checkout/browserAgent.js';
 import { linqClient, normalizePhone } from '../services/linq/client.js';
 import * as copy from '../services/linq/templates.js';
@@ -49,6 +49,24 @@ export interface InboundResult {
 
 const HELP_RE = /^\s*(help|policy|rules|what can i (buy|expense)|commands?)\s*[?!.]*\s*$/i;
 const STATUS_RE = /^\s*(status|pending|open|what'?s open|my requests?)\s*[?!.]*\s*$/i;
+
+
+/**
+ * Where a given mandate's checkout should actually run. Chosen dynamically from
+ * the Prava merchant registry using what was requested, its category, and the
+ * free-text purpose — so books go to Oswaal, dev tools to DeoDap, and nothing is
+ * hardcoded to a single store.
+ */
+function checkoutMerchantFor(mandate: Mandate): MerchantRecord {
+  return routeMerchant({
+    mode: env.CHECKOUT_MODE,
+    requestedMerchant: mandate.scope.merchant,
+    category: mandate.scope.category,
+    purpose: mandate.purpose,
+    devStoreUrl: env.DEV_STORE_URL,
+    devStoreName: env.DEV_STORE_NAME,
+  });
+}
 
 export class MandateOrchestrator {
   constructor(private readonly repo: MandateRepository) {}
@@ -247,7 +265,8 @@ export class MandateOrchestrator {
   private async prepareApproval(mandateId: string): Promise<string> {
     const mandate = await this.repo.require(mandateId);
     const callbackUrl = `${env.PUBLIC_BASE_URL}/authorize/callback`;
-    const session = await pravaClient().createMandateSession(mandate, callbackUrl);
+    const merchant = checkoutMerchantFor(mandate);
+    const session = await pravaClient().createMandateSession(mandate, callbackUrl, merchant);
 
     await this.repo.withLock(mandateId, async (m) => {
       m.prava.sessionId = session.sessionId;
@@ -413,6 +432,7 @@ export class MandateOrchestrator {
     let mandate = await this.repo.require(mandateId);
     let result: CheckoutResult;
     const prava = pravaClient();
+    const merchant = checkoutMerchantFor(mandate);
 
     try {
       // Resolve Prava's mandate id. There is no create-mandate endpoint, so
@@ -440,12 +460,12 @@ export class MandateOrchestrator {
         };
         await this.repo.withLock(mandateId, async (m) => {
           m.prava.cardLast4 = credentials.token.slice(-4);
-          transition(m, MandateState.EXECUTING, 'browser-agent', `checkout at ${prava.merchant.name}`);
+          transition(m, MandateState.EXECUTING, 'browser-agent', `checkout at ${merchant.name}`);
         });
         result = await executeCheckout({
           mandate,
           credentials,
-          merchant: prava.merchant,
+          merchant,
         });
       } else if (!pravaMandateId) {
         result = {
@@ -458,7 +478,7 @@ export class MandateOrchestrator {
         };
       } else {
         // Mint single-use credentials against the standing authorization.
-        const charge = await prava.chargeMandate(pravaMandateId, mandate);
+        const charge = await prava.chargeMandate(pravaMandateId, mandate, merchant);
 
         await this.repo.withLock(mandateId, async (m) => {
           m.prava.pravaMandateId = charge.pravaMandateId ?? pravaMandateId;
@@ -487,13 +507,13 @@ export class MandateOrchestrator {
           };
         } else {
           mandate = await this.repo.withLock(mandateId, async (m) => {
-            transition(m, MandateState.EXECUTING, 'browser-agent', `checkout at ${prava.merchant.name}`);
+            transition(m, MandateState.EXECUTING, 'browser-agent', `checkout at ${merchant.name}`);
             return m;
           });
           result = await executeCheckout({
             mandate,
             credentials: charge.credentials,
-            merchant: prava.merchant,
+            merchant,
           });
         }
       }
@@ -515,6 +535,7 @@ export class MandateOrchestrator {
     const log = mandateLogger(mandateId);
     const prava = pravaClient();
     const current = await this.repo.require(mandateId);
+    const merchant = checkoutMerchantFor(current);
     const approved = result.status === 'COMPLETED';
 
     // Close the loop with the card network. Prava's guidance is explicit:
@@ -558,8 +579,8 @@ export class MandateOrchestrator {
       // signed acknowledgement that we told Prava the truth about it.
       m.evidence = {
         checkoutMode: env.CHECKOUT_MODE,
-        merchantName: prava.merchant.name,
-        merchantUrl: prava.merchant.url,
+        merchantName: merchant.name,
+        merchantUrl: merchant.url,
         gatewayMessage: result.gatewayMessage,
         replayUrl: result.replayUrl,
         screenshots: result.screenshots,
@@ -581,14 +602,14 @@ export class MandateOrchestrator {
     });
 
     log.info({ status: result.status, reported: report.ok, ms: result.durationMs }, 'mandate resolved');
-    this.printDemoBanner(mandate, result, report.ok);
+    this.printDemoBanner(mandate, result, report.ok, merchant);
 
     await this.notify(mandate.id, mandate.requesterPhone, 'receipt', copy.receiptMessage(mandate), `receipt:${mandate.id}`);
     return result;
   }
 
   /** Single-line summary for the demo terminal and the video. */
-  private printDemoBanner(mandate: Mandate, result: CheckoutResult, reported: boolean): void {
+  private printDemoBanner(mandate: Mandate, result: CheckoutResult, reported: boolean, merchant: MerchantRecord): void {
     const cells = [
       `POLICY ${mandate.policyDecision === 'auto_approve' ? 'auto' : 'pass'}`,
       `PRAVA MANDATE ${mandate.prava.pravaMandateId ? 'active' : 'none'}`,
@@ -600,7 +621,7 @@ export class MandateOrchestrator {
     ];
     const bar = '═'.repeat(108);
     console.log(`\n${bar}\n  ${cells.join('  │  ')}`);
-    console.log(`  ${describeMode(env.CHECKOUT_MODE, pravaClient().merchant)}`);
+    console.log(`  ${describeMode(env.CHECKOUT_MODE, merchant)}`);
     if (result.replayUrl) console.log(`  replay: ${result.replayUrl}`);
     if (result.screenshots.length) console.log(`  evidence: ${result.screenshots.join(', ')}`);
     console.log(`${bar}\n`);
