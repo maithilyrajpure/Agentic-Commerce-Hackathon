@@ -58,7 +58,8 @@ export function createApp(): Express {
     res.sendFile(join(here, 'web', 'tokens.css'));
   });
   app.get('/dashboard', (_req, res) => res.sendFile(join(here, 'web', 'dashboard.html')));
-  app.get('/', (_req, res) => res.redirect(302, '/dashboard'));
+  app.get('/request', (_req, res) => res.sendFile(join(here, 'web', 'request.html')));
+  app.get('/', (_req, res) => res.redirect(302, '/request'));
 
   app.use(notFound);
   app.use(errorHandler);

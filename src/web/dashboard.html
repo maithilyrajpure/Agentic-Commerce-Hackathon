@@ -4,170 +4,183 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<title>Mandate ledger</title>
+<title>CardGuard â€” Managed Mandates</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/tokens.css">
 <style>
-/*
-  A ledger, not a SaaS dashboard. It is read by someone deciding whether to let
-  software spend company money, so it borrows from things that already do that
-  job: an account statement, a permit book, a stamped authorization slip.
-
-  Three surfaces, each answering a different question:
-    .parse-card  what the agent UNDERSTOOD  (appears once, on send)
-    .slip        what state the mandate is IN  (the ledger)
-    .drawer      what authority it CARRIES  (the credential, in full)
-
-  Tokens and the shared .band / .meter components live in /tokens.css so the
-  approval screen and this page cannot drift apart.
-*/
 *{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --blue:#1434CB;--blue-light:#EEF1FD;--blue-dark:#0F27A0;
+  --bg:#F8FAFC;--surface:#fff;--border:#E2E8F0;--border-light:#F1F5F9;
+  --text:#0F172A;--text-2:#475569;--text-3:#94A3B8;
+  --green:#10B981;--green-bg:#ECFDF5;--green-border:#A7F3D0;
+  --amber:#F59E0B;--amber-bg:#FFFBEB;--amber-border:#FDE68A;
+  --red:#EF4444;--red-bg:#FEF2F2;--red-border:#FECACA;
+  --exec:#3B82F6;--exec-bg:#EFF6FF;--exec-border:#BFDBFE;
+  --radius:12px;--radius-sm:8px;--radius-xs:6px;
+  --shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04);
+  --shadow-md:0 4px 16px rgba(0,0,0,.08),0 2px 6px rgba(0,0,0,.04);
+  --shadow-lift:0 20px 60px rgba(0,0,0,.12),0 8px 24px rgba(0,0,0,.08);
+}
 html{-webkit-text-size-adjust:100%}
-body{font-family:var(--font-body);background:var(--paper);color:var(--ink);line-height:1.5;padding:28px 20px 60px}
-.wrap{max-width:940px;margin:0 auto}
-
-/* ---------- masthead ---------- */
-header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;padding-bottom:14px;border-bottom:2px solid var(--ink);margin-bottom:2px}
-.org{font-family:var(--font-display);font-weight:800;font-size:15px;letter-spacing:.16em;text-transform:uppercase}
-.title{font-family:var(--font-display);font-weight:600;font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-3)}
-.pulse{display:inline-flex;align-items:center;gap:7px;font-family:var(--font-mono);font-size:11px;color:var(--ink-3)}
-.pulse i{width:6px;height:6px;border-radius:50%;background:var(--ok);animation:blip 2s ease-in-out infinite}
-@keyframes blip{0%,100%{opacity:1}50%{opacity:.2}}
-.rule-thin{height:1px;background:var(--ink);opacity:.25;margin-bottom:22px}
-
-/* ---------- totals ---------- */
-.totals{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--rule);border:1px solid var(--rule);margin-bottom:14px}
-.total{background:var(--card);padding:14px 16px}
-.total dt{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);font-family:var(--font-display);font-weight:700;margin-bottom:5px}
-.total dd{font-family:var(--font-mono);font-size:22px;font-weight:500;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
-.total.committed dd{color:var(--limit)}
-.total.settled dd{color:var(--ok)}
-.total.blocked dd{color:var(--stop)}
-.total small{display:block;font-family:var(--font-body);font-size:11px;color:var(--ink-3);margin-top:3px;letter-spacing:0}
-.policy-strip{font-family:var(--font-mono);font-size:11px;color:var(--ink-2);background:var(--card);border:1px solid var(--rule);border-top:0;padding:9px 16px;margin-bottom:22px;display:flex;gap:16px;flex-wrap:wrap}
-.policy-strip b{color:var(--ink);font-weight:500}
-
-/* ---------- compose ---------- */
-.compose{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
-.compose input{flex:1;min-width:260px;font-family:var(--font-body);font-size:15px;padding:13px 15px;border:1px solid var(--rule);border-radius:var(--radius);background:var(--card);color:var(--ink)}
-.compose input:focus{outline:2px solid var(--ink);outline-offset:-1px;border-color:var(--ink)}
-.compose button{font-family:var(--font-body);font-size:15px;font-weight:600;padding:13px 24px;background:var(--ink);color:#fff;border:0;border-radius:var(--radius);cursor:pointer}
-.compose button:hover{background:#0C1720}
-.compose button:disabled{background:var(--ink-3);cursor:progress}
-.hint{font-size:12px;color:var(--ink-3);margin-bottom:26px}
-.hint b{font-family:var(--font-mono);font-weight:400;color:var(--ink-2);cursor:pointer;border-bottom:1px dotted var(--ink-4)}
-.hint b:hover{color:var(--ink)}
-
-/*
-  The parse card. Proof that free text became a scoped, structured request
-  BEFORE anything was decided — which is the whole argument for trusting an
-  agent with a card. Distinct from the ledger slips on purpose: this is
-  comprehension, not state.
-*/
-.parse-card{background:var(--card);border:1px solid var(--rule);border-top:3px solid var(--ink);border-radius:var(--radius);margin-bottom:26px;box-shadow:var(--shadow);animation:parse-in .26s cubic-bezier(.2,.7,.3,1)}
-@keyframes parse-in{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
-.parse-head{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--rule-soft);flex-wrap:wrap}
-.parse-head .mm-eyebrow{color:var(--ink-3)}
-.parse-close{margin-left:auto;background:0;border:0;color:var(--ink-3);font-size:18px;line-height:1;cursor:pointer;padding:0 4px}
-.parse-close:hover{color:var(--ink)}
-.parse-said{padding:13px 16px 0;font-size:13px;color:var(--ink-3);font-style:italic}
-.parse-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:1px;background:var(--rule-soft);margin:13px 0 0;border-top:1px solid var(--rule-soft);border-bottom:1px solid var(--rule-soft)}
-.pf{background:var(--card);padding:11px 16px}
-.pf dt{font-family:var(--font-display);font-size:9.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);margin-bottom:4px}
-.pf dd{font-family:var(--font-mono);font-size:14px;font-variant-numeric:tabular-nums;color:var(--ink)}
-.pf dd.muted{color:var(--ink-4)}
-.parse-verdict{display:flex;gap:10px;align-items:flex-start;padding:13px 16px;font-size:13.5px;border-left:3px solid var(--limit);background:linear-gradient(90deg,#FCFAF7,#FAFCFD 60%)}
-.parse-verdict.pass{border-left-color:var(--ok);background:linear-gradient(90deg,#F4FAF8,#FAFCFD 60%)}
-.parse-verdict.stop{border-left-color:var(--stop);background:linear-gradient(90deg,#FDF6F7,#FAFCFD 60%)}
-.parse-verdict .g{font-size:15px;line-height:1.2}
-.parse-verdict.pass .g{color:var(--ok)}
-.parse-verdict.stop .g{color:var(--stop)}
-.parse-verdict:not(.pass):not(.stop) .g{color:var(--limit)}
-
-/* ---------- ledger slips ---------- */
-.slips{display:flex;flex-direction:column;gap:12px}
-.slip{background:var(--card);border:1px solid var(--rule);border-radius:var(--radius);overflow:hidden;animation:rise .22s ease-out;cursor:pointer;transition:box-shadow .15s ease,border-color .15s ease}
-.slip:hover{border-color:var(--ink-4);box-shadow:var(--shadow)}
-.slip:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
-@keyframes rise{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
-.slip-head{display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:1px solid var(--rule-soft);flex-wrap:wrap}
-.id{font-family:var(--font-mono);font-size:11px;color:var(--ink-3)}
-.state{font-family:var(--font-display);font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;padding:4px 9px;border-radius:2px}
-.state.wait{background:var(--wait-soft);color:var(--wait)}
-.state.live{background:var(--limit-soft);color:var(--limit)}
-.state.ok{background:var(--ok-soft);color:var(--ok)}
-.state.stop{background:var(--stop-soft);color:var(--stop)}
-.state.dead{background:#EEF2F5;color:var(--ink-3)}
-.when{margin-left:auto;font-family:var(--font-mono);font-size:11px;color:var(--ink-4)}
-.slip-body{padding:15px 16px}
-.headline{display:flex;align-items:baseline;gap:11px;flex-wrap:wrap;margin-bottom:3px}
-.amt{font-family:var(--font-mono);font-size:23px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
-.merchant{font-family:var(--font-display);font-size:17px;font-weight:700}
-.purpose{font-size:14px;color:var(--ink-2);margin-bottom:13px}
-.who{font-size:12px;color:var(--ink-3);font-family:var(--font-mono)}
-.band{margin:12px 0}
-.cap{margin:12px 0 0}
-.reasons{list-style:none;margin:11px 0 0}
-.reasons li{font-size:13px;color:var(--ink-2);padding:4px 0 4px 13px;border-left:2px solid var(--rule-soft)}
-.gateway{font-family:var(--font-mono);font-size:11.5px;color:var(--ink-2);background:var(--surface-2);border:1px solid var(--rule-soft);padding:8px 11px;margin-top:11px;word-break:break-word}
-.acts{display:flex;gap:7px;margin-top:14px;flex-wrap:wrap}
-.acts button{font-family:var(--font-body);font-size:13px;font-weight:600;padding:8px 15px;border-radius:var(--radius);border:1px solid var(--rule);background:var(--card);color:var(--ink-2);cursor:pointer;transition:background .13s,border-color .13s,color .13s}
-.acts button:hover{border-color:var(--ink-3)}
-.acts button.go{background:var(--ok);border-color:var(--ok);color:#fff}
-.acts button.go:hover{background:var(--ok-hover)}
-.acts button.kill:hover{background:var(--stop-soft);border-color:var(--stop);color:var(--stop)}
-.acts button.probe:hover{background:var(--limit-soft);border-color:var(--limit);color:var(--limit)}
-.acts button:disabled{opacity:.5;cursor:progress}
-.empty{background:var(--card);border:1px dashed var(--rule);padding:44px 24px;text-align:center}
-.empty h2{font-family:var(--font-display);font-size:17px;font-weight:700;margin-bottom:7px}
-.empty p{font-size:14px;color:var(--ink-3)}
-.err{background:var(--stop-soft);border:1px solid var(--stop);color:var(--stop);padding:11px 15px;font-size:13px;margin-bottom:16px;border-radius:var(--radius)}
-
-/* ---------- detail drawer ---------- */
-.scrim{position:fixed;inset:0;background:rgba(22,32,43,.42);opacity:0;pointer-events:none;transition:opacity .22s ease;z-index:40}
+body{font-family:'Inter',-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.5;min-height:100vh}
+.layout{display:flex;min-height:100vh}
+.sidebar{width:220px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;bottom:0;left:0;z-index:10}
+.sidebar-logo{padding:20px 20px 16px;border-bottom:1px solid var(--border)}
+.logo-mark{display:flex;align-items:center;gap:10px}
+.logo-icon{width:34px;height:34px;background:var(--blue);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px;flex-shrink:0}
+.logo-text{font-size:15px;font-weight:700;color:var(--text);line-height:1.2}
+.logo-sub{font-size:11px;color:var(--text-3);font-weight:400}
+.sidebar-nav{padding:12px 10px;flex:1}
+.nav-item{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:var(--radius-sm);font-size:13px;font-weight:500;color:var(--text-2);cursor:pointer;text-decoration:none;margin-bottom:2px;transition:background .13s,color .13s}
+.nav-item:hover{background:var(--bg);color:var(--text)}
+.nav-item.active{background:var(--blue-light);color:var(--blue)}
+.nav-item .icon{font-size:15px;width:20px;text-align:center}
+.sidebar-foot{padding:14px 16px;border-top:1px solid var(--border)}
+.live-dot{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--text-3)}
+.live-dot i{width:7px;height:7px;border-radius:50%;background:var(--green);animation:blip 2s ease-in-out infinite}
+@keyframes blip{0%,100%{opacity:1}50%{opacity:.3}}
+.main{margin-left:220px;flex:1;display:flex;flex-direction:column;min-height:100vh}
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 28px;height:60px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:9}
+.topbar-title{flex:1}
+.topbar-title h1{font-size:15px;font-weight:600;color:var(--text)}
+.topbar-title p{font-size:12px;color:var(--text-3)}
+.search-wrap{position:relative}
+.search-wrap input{width:240px;height:34px;border:1px solid var(--border);border-radius:var(--radius-sm);padding:0 12px 0 34px;font-family:inherit;font-size:13px;color:var(--text);background:var(--bg);outline:none;transition:border-color .15s,box-shadow .15s}
+.search-wrap input:focus{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-light)}
+.search-wrap::before{content:'ðŸ”';position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:13px;pointer-events:none}
+.topbar-btns{display:flex;align-items:center;gap:8px}
+.icon-btn{width:34px;height:34px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px;color:var(--text-2);transition:border-color .13s}
+.icon-btn:hover{border-color:var(--text-3);color:var(--text)}
+.err-bar{background:var(--red-bg);border-bottom:1px solid var(--red-border);color:var(--red);padding:8px 28px;font-size:13px;display:none}
+.err-bar.show{display:block}
+.page-body{padding:24px 28px 80px;flex:1}
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:24px}
+.kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow)}
+.kpi-label{font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+.kpi-val{font-size:24px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;letter-spacing:-.02em;margin-bottom:4px}
+.kpi-sub{font-size:12px;color:var(--text-3)}
+.kpi-card.settled .kpi-val{color:var(--green)}
+.kpi-card.blocked .kpi-val{color:var(--red)}
+.kpi-card.pending .kpi-val{color:var(--exec)}
+.ai-bar{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-md);overflow:hidden;margin-bottom:24px}
+.ai-bar-top{display:flex;align-items:center;gap:12px;padding:14px 18px}
+.ai-bar-top > span{font-size:16px}
+.ai-input-wrap{flex:1;display:flex;align-items:center;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden;transition:box-shadow .15s,border-color .15s}
+.ai-input-wrap:focus-within{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-light)}
+.ai-input-wrap input{flex:1;border:none;outline:none;padding:9px 14px;font-family:inherit;font-size:14px;color:var(--text);background:var(--bg)}
+.ai-input-wrap input::placeholder{color:var(--text-3)}
+.ai-send{background:var(--blue);color:#fff;border:none;padding:9px 18px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:background .13s;white-space:nowrap}
+.ai-send:hover{background:var(--blue-dark)}
+.ai-send:disabled{background:var(--border);color:var(--text-3);cursor:not-allowed}
+.ai-chips{padding:0 18px 12px;display:flex;gap:6px;flex-wrap:wrap}
+.ai-chip{background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-size:12px;font-weight:500;color:var(--text-2);cursor:pointer;transition:border-color .13s,color .13s}
+.ai-chip:hover{border-color:var(--blue);color:var(--blue)}
+.parse-card{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--blue);border-radius:var(--radius);margin-bottom:20px;box-shadow:var(--shadow);animation:parse-in .22s ease-out}
+@keyframes parse-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.parse-head{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border-light);flex-wrap:wrap}
+.parse-eyebrow{font-size:11px;font-weight:600;color:var(--text-3);text-transform:uppercase;letter-spacing:.06em}
+.parse-id{font-size:11px;color:var(--text-3);font-family:monospace;margin-left:6px}
+.parse-close{margin-left:auto;background:0;border:0;color:var(--text-3);font-size:18px;cursor:pointer;padding:2px 6px;border-radius:4px}
+.parse-close:hover{color:var(--text);background:var(--bg)}
+.parse-said{padding:10px 16px 0;font-size:13px;color:var(--text-2);font-style:italic}
+.parse-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:1px;background:var(--border-light);margin:10px 0 0;border-top:1px solid var(--border-light)}
+.pf{background:var(--surface);padding:10px 14px}
+.pf dt{font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);margin-bottom:3px}
+.pf dd{font-size:13px;font-family:monospace;color:var(--text);font-variant-numeric:tabular-nums}
+.pf dd.muted{color:var(--text-3)}
+.parse-verdict{display:flex;gap:10px;align-items:flex-start;padding:12px 16px;font-size:13px}
+.parse-verdict.pass{border-top:1px solid var(--green-border);background:var(--green-bg)}
+.parse-verdict.stop{border-top:1px solid var(--red-border);background:var(--red-bg)}
+.parse-verdict:not(.pass):not(.stop){border-top:1px solid var(--amber-border);background:var(--amber-bg)}
+.parse-verdict .g{font-size:15px;font-weight:700}
+.parse-verdict.pass .g{color:var(--green)}
+.parse-verdict.stop .g{color:var(--red)}
+.parse-verdict:not(.pass):not(.stop) .g{color:var(--amber)}
+.section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.section-title{font-size:13px;font-weight:600;color:var(--text-2);text-transform:uppercase;letter-spacing:.06em}
+.section-count{font-size:12px;color:var(--text-3);background:var(--bg);border:1px solid var(--border);padding:2px 8px;border-radius:20px}
+.mandate-list{display:flex;flex-direction:column;gap:2px}
+.slip{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);display:flex;align-items:center;gap:14px;padding:14px 16px;cursor:pointer;transition:box-shadow .13s,border-color .13s;animation:rise .2s ease-out}
+@keyframes rise{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.slip:hover{border-color:var(--blue);box-shadow:0 0 0 2px var(--blue-light)}
+.slip:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.slip-avatar{width:40px;height:40px;border-radius:10px;background:var(--blue-light);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.slip-main{flex:1;min-width:0}
+.slip-top{display:flex;align-items:center;gap:8px;margin-bottom:3px;flex-wrap:wrap}
+.slip-merchant{font-size:14px;font-weight:600;color:var(--text)}
+.slip-purpose{font-size:12px;color:var(--text-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:300px}
+.slip-meta{font-size:12px;color:var(--text-3)}
+.slip-right{display:flex;align-items:center;gap:14px;flex-shrink:0}
+.slip-amt{font-size:16px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.slip-time{font-size:12px;color:var(--text-3)}
+.chevron{color:var(--text-3);font-size:16px;margin-left:4px}
+.badge{font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;white-space:nowrap}
+.badge.wait{background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-border)}
+.badge.live,.badge.exec{background:var(--exec-bg);color:var(--exec);border:1px solid var(--exec-border)}
+.badge.ok{background:var(--green-bg);color:var(--green);border:1px solid var(--green-border)}
+.badge.stop{background:var(--red-bg);color:var(--red);border:1px solid var(--red-border)}
+.badge.dead{background:var(--bg);color:var(--text-3);border:1px solid var(--border)}
+.empty-state{background:var(--surface);border:1px dashed var(--border);border-radius:var(--radius);padding:48px 24px;text-align:center}
+.empty-state h2{font-size:16px;font-weight:600;color:var(--text);margin-bottom:6px}
+.empty-state p{font-size:14px;color:var(--text-3)}
+.sim{display:inline-block;font-size:10px;font-weight:600;background:var(--amber-bg);color:var(--amber);border:1px solid var(--amber-border);padding:2px 6px;border-radius:4px}
+.band{display:flex;flex-wrap:wrap;gap:6px 14px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-xs);padding:8px 12px;margin:10px 0;font-size:12px;color:var(--text-2)}
+.band.dead{opacity:.6}
+.band span b{color:var(--text)}
+.pips{display:inline-flex;gap:3px;vertical-align:middle}
+.pip{width:8px;height:8px;border-radius:2px;background:var(--border)}
+.pip.spent{background:var(--blue)}
+.cap{margin:8px 0}
+.meter-row{display:flex;justify-content:space-between;font-size:12px;color:var(--text-3);margin-bottom:4px}
+.meter-v{font-family:monospace;font-size:12px}
+.meter{height:5px;background:var(--border);border-radius:3px;overflow:hidden}
+.meter i{display:block;height:100%;background:var(--blue);border-radius:3px;transition:width .4s}
+.meter.over i{background:var(--red)}
+.meter.settled i{background:var(--green)}
+.meter.dead i{background:var(--text-3)}
+.policy-strip{font-size:12px;color:var(--text-2);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-xs);padding:8px 14px;margin-bottom:20px;display:flex;gap:14px;flex-wrap:wrap}
+.policy-strip b{color:var(--text);font-weight:600}
+.scrim{position:fixed;inset:0;background:rgba(15,23,42,.35);opacity:0;pointer-events:none;transition:opacity .22s;z-index:40}
 .scrim.open{opacity:1;pointer-events:auto}
-.drawer{position:fixed;top:0;right:0;bottom:0;width:min(560px,100%);background:var(--paper);border-left:1px solid var(--rule);box-shadow:var(--shadow-lift);transform:translateX(100%);transition:transform .26s cubic-bezier(.2,.7,.3,1);z-index:50;display:flex;flex-direction:column}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(560px,100%);background:var(--surface);border-left:1px solid var(--border);box-shadow:var(--shadow-lift);transform:translateX(100%);transition:transform .26s cubic-bezier(.2,.7,.3,1);z-index:50;display:flex;flex-direction:column}
 .drawer.open{transform:none}
-.drawer-head{display:flex;align-items:center;gap:12px;padding:16px 20px;background:var(--card);border-bottom:1px solid var(--rule);flex-wrap:wrap}
-.drawer-head .id{margin-left:0}
-.drawer-close{margin-left:auto;background:0;border:1px solid var(--rule);border-radius:var(--radius);color:var(--ink-2);font-size:15px;line-height:1;cursor:pointer;padding:6px 11px}
-.drawer-close:hover{border-color:var(--ink-3);color:var(--ink)}
+.drawer-head{display:flex;align-items:center;gap:10px;padding:16px 20px;background:var(--surface);border-bottom:1px solid var(--border);flex-wrap:wrap}
+.drawer-close{margin-left:auto;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text-2);font-size:13px;font-family:inherit;cursor:pointer;padding:6px 12px;transition:border-color .13s}
+.drawer-close:hover{border-color:var(--text-3);color:var(--text)}
 .drawer-body{overflow-y:auto;padding:20px;flex:1}
-.cred{background:var(--card);border:1px solid var(--rule);border-left:3px solid var(--limit);border-radius:var(--radius);padding:18px 20px;margin-bottom:20px}
-.cred h2{font-family:var(--font-display);font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--limit);margin-bottom:14px}
-.lock{display:flex;align-items:baseline;gap:9px;font-family:var(--font-display);font-size:19px;font-weight:700;margin-bottom:4px}
-.lock small{font-family:var(--font-body);font-size:12px;font-weight:400;color:var(--ink-3)}
-.cred-amt{font-family:var(--font-mono);font-size:27px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.02em;margin-bottom:16px}
-.cred-rows{border-top:1px dotted var(--rule);margin-top:16px;padding-top:4px}
-.cred-row{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:7px 0;border-bottom:1px dotted var(--rule)}
+.cred{background:var(--blue-light);border:1px solid #C7D2F8;border-radius:var(--radius);padding:18px 20px;margin-bottom:20px}
+.cred h2{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--blue);margin-bottom:12px}
+.lock{display:flex;align-items:baseline;gap:8px;font-size:16px;font-weight:700;margin-bottom:4px;color:var(--text)}
+.lock small{font-size:12px;font-weight:400;color:var(--text-2)}
+.cred-amt{font-size:28px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.02em;color:var(--text);margin-bottom:14px}
+.cred-rows{border-top:1px solid #C7D2F8;margin-top:14px;padding-top:2px}
+.cred-row{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:7px 0;border-bottom:1px solid #C7D2F8}
 .cred-row:last-child{border-bottom:0}
-.cred-k{font-size:12px;color:var(--ink-3)}
-.cred-v{font-family:var(--font-mono);font-size:13px;font-variant-numeric:tabular-nums;text-align:right}
+.cred-k{font-size:12px;color:var(--text-2)}
+.cred-v{font-family:monospace;font-size:13px;font-variant-numeric:tabular-nums;text-align:right;color:var(--text)}
 .sect{margin-bottom:20px}
-.sect > h3{font-family:var(--font-display);font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--ink-3);margin-bottom:11px}
-.panel{background:var(--card);border:1px solid var(--rule);border-radius:var(--radius);padding:16px 18px}
-
-/* audit timeline */
-.tl{list-style:none;position:relative;padding-left:20px}
-.tl::before{content:'';position:absolute;left:4px;top:5px;bottom:5px;width:1px;background:var(--rule)}
-.tl li{position:relative;padding:0 0 14px}
+.sect > h3{font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);margin-bottom:10px}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 16px}
+.tl{list-style:none;position:relative;padding-left:18px}
+.tl::before{content:'';position:absolute;left:3px;top:5px;bottom:5px;width:1px;background:var(--border)}
+.tl li{position:relative;padding:0 0 12px}
 .tl li:last-child{padding-bottom:0}
-.tl li::before{content:'';position:absolute;left:-20px;top:5px;width:7px;height:7px;border-radius:50%;background:var(--rule);border:1.5px solid var(--card);box-shadow:0 0 0 1.5px var(--rule)}
-.tl li.key::before{background:var(--limit);box-shadow:0 0 0 1.5px var(--limit)}
-.tl li.good::before{background:var(--ok);box-shadow:0 0 0 1.5px var(--ok)}
-.tl li.bad::before{background:var(--stop);box-shadow:0 0 0 1.5px var(--stop)}
-.tl-top{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
-.tl-ev{font-family:var(--font-mono);font-size:12.5px;color:var(--ink)}
-.tl-actor{font-size:11px;color:var(--ink-3)}
-.tl-when{margin-left:auto;font-family:var(--font-mono);font-size:10.5px;color:var(--ink-4)}
-.tl-detail{font-size:12.5px;color:var(--ink-2);margin-top:2px;word-break:break-word}
-
-/* conversation — plain, so it reads as a phone transcript not a chat widget */
-.thread{display:flex;flex-direction:column;gap:14px}
-.msg{max-width:86%}
+.tl li::before{content:'';position:absolute;left:-18px;top:5px;width:7px;height:7px;border-radius:50%;background:var(--border);border:1.5px solid var(--surface);box-shadow:0 0 0 1.5px var(--border)}
+.tl li.key::before{background:var(--blue);box-shadow:0 0 0 1.5px var(--blue)}
+.tl li.good::before{background:var(--green);box-shadow:0 0 0 1.5px var(--green)}
+.tl li.bad::before{background:var(--red);box-shadow:0 0 0 1.5px var(--red)}
+.tl-top{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.tl-ev{font-family:monospace;font-size:12px;color:var(--text);font-weight:500}
+.tl-actor{font-size:11px;color:var(--text-3)}
+.tl-when{margin-left:auto;font-family:monospace;font-size:11px;color:var(--text-3)}
+.tl-detail{font-size:12px;color:var(--text-2);margin-top:2px;word-break:break-word}
+.thread{display:flex;flex-direction:column;gap:12px}
+.msg{max-width:88%}
 .msg.to-approver{align-self:flex-end;text-align:right}
+<<<<<<< HEAD
 .msg-meta{font-family:var(--font-mono);font-size:10px;color:var(--ink-4);margin-bottom:4px;letter-spacing:.04em}
 .bubble{display:inline-block;text-align:left;background:var(--surface-2);border:1px solid var(--rule-soft);border-radius:14px;padding:10px 14px;font-size:13.5px;white-space:pre-wrap;word-break:break-word;color:var(--ink)}
 .msg.to-approver .bubble{background:var(--wait-soft);border-color:#CBDFEE}
@@ -179,37 +192,118 @@ header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:2
 .dim{color:var(--ink-3);font-size:13px}
 
 @media(max-width:640px){.totals{grid-template-columns:1fr}.amt{font-size:20px}.drawer{width:100%}}
+=======
+.msg-meta{font-size:10px;color:var(--text-3);margin-bottom:3px;font-family:monospace}
+.bubble{display:inline-block;text-align:left;background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:9px 13px;font-size:13px;white-space:pre-wrap;word-break:break-word;color:var(--text)}
+.msg.to-approver .bubble{background:var(--blue-light);border-color:#C7D2F8}
+.sim-note{display:flex;align-items:center;gap:6px;margin-bottom:10px;font-size:12px;color:var(--text-2)}
+.probe-out{margin-top:12px;padding:10px 14px;border-radius:var(--radius-xs);font-size:13px;border:1px solid var(--red-border);border-left:3px solid var(--red);background:var(--red-bg);color:var(--red)}
+.probe-out.ran{border-color:var(--amber-border);border-left-color:var(--amber);background:var(--amber-bg);color:var(--amber)}
+.dim{color:var(--text-3);font-size:13px}
+.acts{display:flex;gap:6px;flex-wrap:wrap}
+.acts button{font-family:inherit;font-size:13px;font-weight:500;padding:7px 14px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface);color:var(--text-2);cursor:pointer;transition:all .13s}
+.acts button:hover{border-color:var(--text-3);color:var(--text)}
+.acts button.go{background:var(--green);border-color:var(--green);color:#fff}
+.acts button.go:hover{background:#059669}
+.acts button.kill:hover{background:var(--red-bg);border-color:var(--red);color:var(--red)}
+.acts button.probe:hover{background:var(--amber-bg);border-color:var(--amber);color:var(--amber)}
+.acts button:disabled{opacity:.5;cursor:progress}
+@media(max-width:768px){.sidebar{display:none}.main{margin-left:0}.kpi-row{grid-template-columns:1fr 1fr}.search-wrap input{width:160px}.drawer{width:100%}}
+>>>>>>> a7520ba52c37e3529da26702ac280c1cc6f3fd63
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header class="top">
-    <div><div class="org" id="org">—</div><div class="title">Mandate ledger</div></div>
-    <div class="pulse"><i></i><span id="pulse">connecting</span></div>
-  </header>
-  <div class="rule-thin"></div>
+<div class="layout">
+  <nav class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-mark">
+        <div class="logo-icon">ðŸ›¡ï¸</div>
+        <div>
+          <div class="logo-text">CardGuard</div>
+          <div class="logo-sub">Agentic Commerce</div>
+        </div>
+      </div>
+    </div>
+    <div class="sidebar-nav">
+      <a href="/request" class="nav-item"><span class="icon">ðŸ’¬</span>Request Purchase</a>
+      <a href="/dashboard" class="nav-item active"><span class="icon">ðŸ“‹</span>Mandate Ledger</a>
+      <a href="/ready" class="nav-item"><span class="icon">ðŸ”Œ</span>Integrations</a>
+      <a href="/api/policy" class="nav-item"><span class="icon">ðŸ“œ</span>Spend Policy</a>
+    </div>
+    <div class="sidebar-foot">
+      <div class="live-dot"><i></i><span id="pulse">connectingâ€¦</span></div>
+    </div>
+  </nav>
 
-  <div id="error" class="err" hidden></div>
+  <div class="main">
+    <div class="topbar">
+      <div class="topbar-title">
+        <h1>Managed Mandates</h1>
+        <p>AI-powered spend control Â· <span id="org">â€”</span></p>
+      </div>
+      <div class="search-wrap">
+        <input type="text" id="search" placeholder="Search mandatesâ€¦" aria-label="Search mandates">
+      </div>
+      <div class="topbar-btns">
+        <button class="icon-btn" id="refresh-btn" title="Refresh" aria-label="Refresh">â†»</button>
+      </div>
+    </div>
 
-  <dl class="totals">
-    <div class="total committed"><dt>Committed</dt><dd id="t-committed">$0.00</dd><small>authorized, not yet settled</small></div>
-    <div class="total settled"><dt>Settled</dt><dd id="t-settled">$0.00</dd><small>paid at the merchant</small></div>
-    <div class="total blocked"><dt>Stopped</dt><dd id="t-blocked">$0.00</dd><small>refused or withdrawn</small></div>
-  </dl>
-  <div class="policy-strip" id="policy">loading policy…</div>
+    <div class="err-bar" id="error"></div>
 
-  <form class="compose" id="compose" autocomplete="off">
-    <input id="text" placeholder="Tell the agent what you need" aria-label="Purchase request">
-    <button type="submit" id="send">Send</button>
-  </form>
-  <p class="hint">Try
-    <b data-fill="Figma, $45/mo for 2 designers">Figma, $45/mo for 2 designers</b> ·
-    <b data-fill="Top up OpenAI credits by $20">$20 of OpenAI credits</b> ·
-    <b data-fill="Team dinner at Olive, $80">team dinner, $80</b>
-  </p>
+    <div class="page-body">
 
-  <div id="parse"></div>
-  <div class="slips" id="slips"></div>
+      <div class="kpi-row">
+        <div class="kpi-card">
+          <div class="kpi-label">ðŸ“Š Total Mandates</div>
+          <div class="kpi-val" id="kpi-total">â€”</div>
+          <div class="kpi-sub">all time</div>
+        </div>
+        <div class="kpi-card pending">
+          <div class="kpi-label">â³ Pending Approval</div>
+          <div class="kpi-val" id="kpi-pending">â€”</div>
+          <div class="kpi-sub">awaiting passkey</div>
+        </div>
+        <div class="kpi-card settled">
+          <div class="kpi-label">âœ… Total Settled</div>
+          <div class="kpi-val" id="t-settled">$0.00</div>
+          <div class="kpi-sub">paid at merchant</div>
+        </div>
+        <div class="kpi-card blocked">
+          <div class="kpi-label">ðŸš« Stopped</div>
+          <div class="kpi-val" id="t-blocked">$0.00</div>
+          <div class="kpi-sub">refused or withdrawn</div>
+        </div>
+      </div>
+
+      <div class="policy-strip" id="policy">loading policyâ€¦</div>
+
+      <div class="ai-bar">
+        <div class="ai-bar-top">
+          <span>ðŸ¤–</span>
+          <div class="ai-input-wrap">
+            <input id="text" type="text" placeholder='Tell the agent what you need â€” e.g. "Figma $45/mo for 2 designers"' aria-label="Purchase request">
+            <button class="ai-send" id="send">Send Request</button>
+          </div>
+        </div>
+        <div class="ai-chips">
+          <span class="ai-chip" data-fill="Top up OpenAI credits by $20">$20 OpenAI credits</span>
+          <span class="ai-chip" data-fill="Figma, $45/mo for 2 designers">Figma $45/mo</span>
+          <span class="ai-chip" data-fill="GitHub Copilot $10/mo for dev team">GitHub Copilot $10</span>
+          <span class="ai-chip" data-fill="Team dinner at Olive, $80">Team dinner $80</span>
+        </div>
+      </div>
+
+      <div id="parse"></div>
+
+      <div class="section-head">
+        <div class="section-title">Mandates</div>
+        <div class="section-count" id="slip-count">0</div>
+      </div>
+      <div class="mandate-list" id="slips"></div>
+
+    </div>
+  </div>
 </div>
 
 <div class="scrim" id="scrim"></div>
@@ -221,221 +315,102 @@ header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:2
 <script>
 (function(){
   'use strict';
-
   var usd=function(c){return '$'+(Math.trunc(Math.abs(c||0))/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});};
-  var esc=function(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});};
-
-  var STATE_CLASS={DRAFT:'dead',PENDING_APPROVAL:'wait',AUTHORIZED:'live',PROVISIONED:'live',EXECUTING:'live',COMPLETED:'ok',DECLINED:'stop',REJECTED:'stop',REVOKED:'stop',FAILED:'stop',EXPIRED:'dead'};
+  var esc=function(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});};
+  var ME={openai:'ðŸ¤–',figma:'ðŸŽ¨',github:'ðŸ™',vercel:'â–²',notion:'ðŸ““',slack:'ðŸ’¬',aws:'â˜ï¸',cloudflare:'ðŸ”¶',linear:'ðŸ“',anthropic:'ðŸ§ ',datadog:'ðŸ•',sentry:'ðŸ”',stripe:'ðŸ’³',littlebox:'ðŸ“¦',headphone:'ðŸŽ§',boat:'â›µ',mokobara:'ðŸ§³',oswaal:'ðŸ“š'};
+  function merchantEmoji(n){var s=(n||'').toLowerCase();for(var k in ME){if(s.includes(k))return ME[k];}return 'ðŸª';}
+  var STATE_CLASS={DRAFT:'dead',PENDING_APPROVAL:'wait',AUTHORIZED:'live',PROVISIONED:'live',EXECUTING:'exec',COMPLETED:'ok',DECLINED:'stop',REJECTED:'stop',REVOKED:'stop',FAILED:'stop',EXPIRED:'dead'};
   var DEAD=['COMPLETED','DECLINED','REJECTED','REVOKED','FAILED','EXPIRED'];
   var isDead=function(s){return DEAD.indexOf(s)!==-1;};
-
   var els={org:document.getElementById('org'),pulse:document.getElementById('pulse'),error:document.getElementById('error'),
     policy:document.getElementById('policy'),slips:document.getElementById('slips'),parse:document.getElementById('parse'),
-    text:document.getElementById('text'),send:document.getElementById('send'),compose:document.getElementById('compose'),
-    committed:document.getElementById('t-committed'),settled:document.getElementById('t-settled'),blocked:document.getElementById('t-blocked'),
+    text:document.getElementById('text'),send:document.getElementById('send'),
+    kpiTotal:document.getElementById('kpi-total'),kpiPending:document.getElementById('kpi-pending'),
+    settled:document.getElementById('t-settled'),blocked:document.getElementById('t-blocked'),
     scrim:document.getElementById('scrim'),drawer:document.getElementById('drawer'),
-    dHead:document.getElementById('drawer-head'),dBody:document.getElementById('drawer-body')};
-
-  var openId=null, lastFocus=null, linqLive=false;
-
-  function fail(m){els.error.textContent=m;els.error.hidden=false;els.pulse.textContent='offline';}
-  function clearFail(){els.error.hidden=true;}
-
-  async function api(path,options){
-    var res=await fetch(path,options);
-    var body=await res.json().catch(function(){return {};});
-    if(!res.ok) throw new Error(body.message||('Request failed with '+res.status));
-    return body;
-  }
-
-  function timeAgo(iso){
-    var s=Math.max(0,Math.round((Date.now()-new Date(iso).getTime())/1000));
-    if(s<60) return s+'s ago';
-    if(s<3600) return Math.round(s/60)+'m ago';
-    if(s<86400) return Math.round(s/3600)+'h ago';
-    return Math.round(s/86400)+'d ago';
-  }
+    dHead:document.getElementById('drawer-head'),dBody:document.getElementById('drawer-body'),
+    slipCount:document.getElementById('slip-count'),search:document.getElementById('search')};
+  var openId=null,lastFocus=null,linqLive=false,allMandates=[],searchQ='';
+  function fail(m){els.error.textContent=m;els.error.classList.add('show');els.pulse.textContent='offline';}
+  function clearFail(){els.error.classList.remove('show');}
+  async function api(path,options){var res=await fetch(path,options);var body=await res.json().catch(function(){return{};});if(!res.ok)throw new Error(body.message||('Request failed with '+res.status));return body;}
+  function timeAgo(iso){var s=Math.max(0,Math.round((Date.now()-new Date(iso).getTime())/1000));if(s<60)return s+'s ago';if(s<3600)return Math.round(s/60)+'m ago';if(s<86400)return Math.round(s/3600)+'h ago';return Math.round(s/86400)+'d ago';}
   function minsLeft(m){return Math.max(0,Math.round((new Date(m.scope.expiresAt).getTime()-Date.now())/60000));}
-
-  /* ---- shared components ------------------------------------------------ */
-
-  // Drawn against the FULL ceiling, never rescaled: a cap you cannot see the
-  // edge of is not a cap you can reason about.
   function meter(label,usedCents,capCents,state){
     var pct=capCents>0?Math.min(100,Math.round((usedCents/capCents)*100)):0;
     var cls=usedCents>capCents?'over':(state==='COMPLETED'?'settled':(isDead(state)?'dead':''));
-    return '<div class="cap">'
-      +'<div class="meter-row"><span class="meter-k">'+esc(label)+'</span>'
-      +'<span class="meter-v">'+usd(usedCents)+' of '+usd(capCents)+'</span></div>'
-      +'<div class="meter '+cls+'"><i style="width:'+pct+'%"></i></div></div>';
+    return '<div class="cap"><div class="meter-row"><span class="meter-k">'+esc(label)+'</span><span class="meter-v">'+usd(usedCents)+' of '+usd(capCents)+'</span></div><div class="meter '+cls+'"><i style="width:'+pct+'%"></i></div></div>';
   }
-
   function band(m){
-    var dead=isDead(m.state), pips='';
+    var dead=isDead(m.state),pips='';
     for(var i=0;i<Math.min(m.scope.maxUses,8);i++) pips+='<span class="pip'+(i<m.scope.usesConsumed?' spent':'')+'"></span>';
-    return '<div class="band'+(dead?' dead':'')+'">'
-      +'<span>merchant <b>'+esc(m.scope.merchant)+'</b> only</span>'
-      +'<span>cap <b>'+usd(m.scope.perTransactionCapCents)+'</b></span>'
-      +'<span>uses <span class="pips">'+pips+'</span> <b>'+(m.scope.maxUses-m.scope.usesConsumed)+' left</b></span>'
-      +'<span>'+(dead?'closed':'expires <b>'+minsLeft(m)+' min</b>')+'</span>'
-      +(m.prava.cardLast4?'<span>token <b>···'+esc(m.prava.cardLast4)+'</b></span>':'')
-      +'</div>';
+    return '<div class="band'+(dead?' dead':'')+'"><span>merchant <b>'+esc(m.scope.merchant)+'</b> only</span><span>cap <b>'+usd(m.scope.perTransactionCapCents)+'</b></span><span>uses <span class="pips">'+pips+'</span> <b>'+(m.scope.maxUses-m.scope.usesConsumed)+' left</b></span><span>'+(dead?'closed':'expires <b>'+minsLeft(m)+' min</b>')+'</span>'+(m.prava.cardLast4?'<span>token <b>Â·Â·Â·'+esc(m.prava.cardLast4)+'</b></span>':'')+'</div>';
   }
-
-  /* ---- parse card -------------------------------------------------------- */
-
   function parseCard(said,result){
     var m=result.mandate;
-    if(!m){
-      return '<section class="parse-card"><div class="parse-head"><span class="mm-eyebrow">What the agent understood</span>'
-        +'<button class="parse-close" data-close-parse aria-label="Dismiss">×</button></div>'
-        +'<p class="parse-said">"'+esc(said)+'"</p>'
-        +'<div class="parse-verdict"><span class="g">?</span><span>'+esc((result.reply||'').split('\n')[0]||'Not read as a purchase request.')+'</span></div>'
-        +'</section>';
-    }
-
-    var verdict=m.policyDecision, cls='', glyph='', line='';
-    if(verdict==='auto_approve'){cls='pass';glyph='✓';line=m.policyReasons[0]||'Within the unattended limit.';}
-    else if(verdict==='reject'){cls='stop';glyph='✕';line='Not payable — '+(m.policyReasons[0]||'out of policy');}
-    else {cls='';glyph='⧗';line='Needs approval — '+(m.policyReasons[0]||'above the unattended limit');}
-
+    if(!m){return '<section class="parse-card"><div class="parse-head"><span class="parse-eyebrow">What the agent understood</span><button class="parse-close" data-close-parse aria-label="Dismiss">Ã—</button></div><p class="parse-said">"'+esc(said)+'"</p><div class="parse-verdict"><span class="g">?</span><span>'+esc((result.reply||'').split('\n')[0]||'Not read as a purchase request.')+'</span></div></section>';}
+    var verdict=m.policyDecision,cls='',glyph='',line='';
+    if(verdict==='auto_approve'){cls='pass';glyph='âœ“';line=m.policyReasons[0]||'Within the unattended limit.';}
+    else if(verdict==='reject'){cls='stop';glyph='âœ•';line='Not payable â€” '+(m.policyReasons[0]||'out of policy');}
+    else{cls='';glyph='â§—';line='Needs approval â€” '+(m.policyReasons[0]||'above the unattended limit');}
     var f=function(k,v,muted){return '<div class="pf"><dt>'+k+'</dt><dd'+(muted?' class="muted"':'')+'>'+esc(v)+'</dd></div>';};
     var known=m.merchant&&m.merchant!=='unknown';
-
-    return '<section class="parse-card">'
-      +'<div class="parse-head"><span class="mm-eyebrow">What the agent understood</span>'
-      +'<span class="id">'+esc(m.id)+'</span>'
-      +'<button class="parse-close" data-close-parse aria-label="Dismiss">×</button></div>'
-      +'<p class="parse-said">"'+esc(said)+'"</p>'
-      +'<dl class="parse-grid">'
-        +f('Merchant',known?m.merchant:'not identified',!known)
-        +f('Amount',m.amountCents?usd(m.amountCents):'not stated',!m.amountCents)
-        +f('Cadence',(m.recurrence||'one_time').replace(/_/g,' '))
-        +f('Category',(m.category||'other').replace(/_/g,' '))
-      +'</dl>'
-      +'<div class="parse-verdict '+cls+'"><span class="g">'+glyph+'</span><span>'+esc(line)+'</span></div>'
-      +'</section>';
+    return '<section class="parse-card"><div class="parse-head"><span class="parse-eyebrow">What the agent understood</span><span class="parse-id">'+esc(m.id)+'</span><button class="parse-close" data-close-parse aria-label="Dismiss">Ã—</button></div><p class="parse-said">"'+esc(said)+'"</p><dl class="parse-grid">'+f('Merchant',known?m.merchant:'not identified',!known)+f('Amount',m.amountCents?usd(m.amountCents):'not stated',!m.amountCents)+f('Cadence',(m.recurrence||'one_time').replace(/_/g,' '))+f('Category',(m.category||'other').replace(/_/g,' '))+'</dl><div class="parse-verdict '+cls+'"><span class="g">'+glyph+'</span><span>'+esc(line)+'</span></div></section>';
   }
-
-  /* ---- ledger ------------------------------------------------------------ */
-
   function slip(m){
-    var reasons=(m.policyReasons||[]).map(function(r){return '<li>'+esc(r)+'</li>';}).join('');
-    var acts='';
-    if(m.state==='PENDING_APPROVAL'){
-      acts='<button class="go" data-act="approve" data-id="'+m.id+'">Approve</button>'
-          +'<button data-act="decline" data-id="'+m.id+'">Decline</button>';
-    }else if(['AUTHORIZED','PROVISIONED','EXECUTING'].indexOf(m.state)!==-1){
-      acts='<button class="kill" data-act="revoke" data-id="'+m.id+'">Revoke now</button>';
-    }
     var simulated=m.prava.sessionId&&String(m.prava.sessionId).indexOf('sim_')===0;
-    var spent=(m.outcome&&m.outcome.amountCapturedCents)||0;
-
+    var badgeCls=STATE_CLASS[m.state]||'dead';
     return '<article class="slip" data-open="'+m.id+'" tabindex="0" role="button" aria-label="Open mandate detail">'
-      +'<div class="slip-head">'
-        +'<span class="state '+(STATE_CLASS[m.state]||'dead')+'">'+esc(m.state.replace(/_/g,' '))+'</span>'
-        +'<span class="id">'+esc(m.id)+'</span>'
-        +(simulated?'<span class="sim">simulated session</span>':'')
-        +'<span class="when">'+timeAgo(m.updatedAt)+'</span>'
+      +'<div class="slip-avatar">'+merchantEmoji(m.scope.merchant)+'</div>'
+      +'<div class="slip-main">'
+        +'<div class="slip-top"><span class="slip-merchant">'+esc(m.scope.merchant)+'</span>'+(simulated?'<span class="sim">sim</span>':'')+'<span class="badge '+badgeCls+'">'+esc(m.state.replace(/_/g,' '))+'</span></div>'
+        +'<div class="slip-purpose">'+esc(m.purpose||'â€”')+(m.seats?' Â· '+m.seats+' seats':'')+'</div>'
+        +'<div class="slip-meta">from '+esc(m.requesterPhone)+(m.authorizedBy?' Â· approved by '+esc(m.authorizedBy):'')+'</div>'
       +'</div>'
-      +'<div class="slip-body">'
-        +'<div class="headline"><span class="amt">'+usd(m.amountCents)+'</span><span class="merchant">'+esc(m.scope.merchant)+'</span></div>'
-        +'<p class="purpose">'+esc(m.purpose)+(m.seats?' · '+m.seats+' seats':'')+'</p>'
-        +'<p class="who">from '+esc(m.requesterPhone)+(m.authorizedBy?' · approved by '+esc(m.authorizedBy):'')+'</p>'
-        +band(m)
-        +meter('Spent against this mandate',spent,m.scope.totalCapCents,m.state)
-        +(reasons?'<ul class="reasons">'+reasons+'</ul>':'')
-        +(m.outcome&&m.outcome.gatewayMessage?'<div class="gateway">'+esc(m.outcome.gatewayMessage)+'</div>':'')
-        +(acts?'<div class="acts">'+acts+'</div>':'')
-      +'</div></article>';
+      +'<div class="slip-right"><span class="slip-amt">'+usd(m.amountCents)+'</span><span class="slip-time">'+timeAgo(m.updatedAt)+'</span><span class="chevron">â€º</span></div>'
+      +'</article>';
   }
-
-  var lastRenderKey = {};
+  var lastRenderKey={};
   function render(mandates,summary){
-    els.committed.textContent=usd(summary.committedCents);
-    els.settled.textContent=usd(summary.settledCents);
-    els.blocked.textContent=usd(summary.blockedCents);
-    if(!mandates.length){
-      if(!els.slips.querySelector('.empty')) {
-        els.slips.innerHTML='<div class="empty"><h2>No mandates yet</h2><p>Send a request above, or text the agent. Every decision it makes lands here.</p></div>';
-      }
-      lastRenderKey = {};
-      return;
-    }
-    var emptyEl = els.slips.querySelector('.empty');
-    if(emptyEl) emptyEl.remove();
-
-    var currentIds = {};
-    mandates.forEach(function(m, idx){
-      currentIds[m.id] = true;
-      var newHtml = slip(m);
-      var key = m.id + ':' + m.state + ':' + m.updatedAt + ':' + m.amountCents + ':' + (m.outcome ? m.outcome.amountCapturedCents : 0);
-      
-      var existingCard = els.slips.querySelector('[data-open="' + m.id + '"]');
-      if (!existingCard) {
-        var temp = document.createElement('div');
-        temp.innerHTML = newHtml;
-        var newCard = temp.firstElementChild;
-        var refNode = els.slips.children[idx] || null;
-        els.slips.insertBefore(newCard, refNode);
-        lastRenderKey[m.id] = key;
-      } else if (lastRenderKey[m.id] !== key) {
-        var temp = document.createElement('div');
-        temp.innerHTML = newHtml;
-        var updatedCard = temp.firstElementChild;
-        els.slips.replaceChild(updatedCard, existingCard);
-        lastRenderKey[m.id] = key;
-      }
+    allMandates=mandates;
+    var pending=mandates.filter(function(m){return m.state==='PENDING_APPROVAL';}).length;
+    els.kpiTotal.textContent=mandates.length;
+    els.kpiPending.textContent=pending;
+    if(summary){els.settled.textContent=usd(summary.settledCents);els.blocked.textContent=usd(summary.blockedCents);}
+    var filtered=searchQ?mandates.filter(function(m){var q=searchQ.toLowerCase();return(m.scope.merchant||'').toLowerCase().includes(q)||(m.purpose||'').toLowerCase().includes(q)||(m.state||'').toLowerCase().includes(q);}):mandates;
+    els.slipCount.textContent=filtered.length;
+    if(!filtered.length){if(!els.slips.querySelector('.empty-state')){els.slips.innerHTML='<div class="empty-state"><h2>'+(searchQ?'No results for "'+esc(searchQ)+'"':'No mandates yet')+'</h2><p>'+(searchQ?'Try a different search term.':'Send a request above, or text the agent.')+'</p></div>';}lastRenderKey={};return;}
+    var emptyEl=els.slips.querySelector('.empty-state');if(emptyEl)emptyEl.remove();
+    var currentIds={};
+    filtered.forEach(function(m,idx){
+      currentIds[m.id]=true;
+      var newHtml=slip(m);
+      var key=m.id+':'+m.state+':'+m.updatedAt+':'+m.amountCents+':'+(m.outcome?m.outcome.amountCapturedCents:0);
+      var existingCard=els.slips.querySelector('[data-open="'+m.id+'"]');
+      if(!existingCard){var temp=document.createElement('div');temp.innerHTML=newHtml;els.slips.insertBefore(temp.firstElementChild,els.slips.children[idx]||null);lastRenderKey[m.id]=key;}
+      else if(lastRenderKey[m.id]!==key){var temp=document.createElement('div');temp.innerHTML=newHtml;els.slips.replaceChild(temp.firstElementChild,existingCard);lastRenderKey[m.id]=key;}
     });
-
-    Array.from(els.slips.children).forEach(function(card){
-      if(card.classList && card.classList.contains('slip')){
-        var id = card.getAttribute('data-open');
-        if(id && !currentIds[id]){
-          card.remove();
-          delete lastRenderKey[id];
-        }
-      }
-    });
+    Array.from(els.slips.children).forEach(function(card){if(card.classList&&card.classList.contains('slip')){var id=card.getAttribute('data-open');if(id&&!currentIds[id]){card.remove();delete lastRenderKey[id];}}});
   }
-
-  /* ---- detail drawer ----------------------------------------------------- */
-
   function timeline(audit){
-    var KEY=/authorized|provisioned|executing/i, GOOD=/completed|minted|reported|resolved/i, BAD=/reject|declin|revok|fail|expire|refus|undeliver/i;
-    return '<ol class="tl">'+audit.map(function(a){
-      var cls=BAD.test(a.event)?'bad':(GOOD.test(a.event)?'good':(KEY.test(a.event)?'key':''));
-      return '<li class="'+cls+'"><div class="tl-top">'
-        +'<span class="tl-ev">'+esc(a.event)+'</span>'
-        +'<span class="tl-actor">'+esc(a.actor)+'</span>'
-        +'<span class="tl-when">'+timeAgo(a.at)+'</span></div>'
-        +(a.detail?'<div class="tl-detail">'+esc(a.detail)+'</div>':'')
-        +(a.from&&a.to?'<div class="tl-detail">'+esc(a.from)+' → '+esc(a.to)+'</div>':'')
-        +'</li>';
-    }).join('')+'</ol>';
+    var KEY=/authorized|provisioned|executing/i,GOOD=/completed|minted|reported|resolved/i,BAD=/reject|declin|revok|fail|expire|refus|undeliver/i;
+    return '<ol class="tl">'+audit.map(function(a){var cls=BAD.test(a.event)?'bad':(GOOD.test(a.event)?'good':(KEY.test(a.event)?'key':''));return '<li class="'+cls+'"><div class="tl-top"><span class="tl-ev">'+esc(a.event)+'</span><span class="tl-actor">'+esc(a.actor)+'</span><span class="tl-when">'+timeAgo(a.at)+'</span></div>'+(a.detail?'<div class="tl-detail">'+esc(a.detail)+'</div>':'')+(a.from&&a.to?'<div class="tl-detail">'+esc(a.from)+' â†’ '+esc(a.to)+'</div>':'')+'</li>';}).join('')+'</ol>';
   }
-
   function thread(m){
     var msgs=m.messages||[];
-    if(!msgs.length) return '<p class="dim">Nothing sent yet.</p>';
+    if(!msgs.length)return '<p class="dim">Nothing sent yet.</p>';
     var approver=m.approverPhone&&m.approverPhone!==m.requesterPhone?m.approverPhone:null;
-    var note=linqLive?'':'<div class="sim-note"><span class="sim">simulated</span><span>No LINQ_API_TOKEN configured — these were printed to the server console, not delivered.</span></div>';
-    return note+'<div class="thread">'+msgs.map(function(x){
-      var side=(approver&&x.to===approver)?' to-approver':'';
-      return '<div class="msg'+side+'">'
-        +'<div class="msg-meta">'+esc(x.kind.replace(/_/g,' '))+' · '+esc(x.to)+' · '+timeAgo(x.at)+'</div>'
-        +'<div class="bubble">'+esc(x.body)+'</div></div>';
-    }).join('')+'</div>';
+    var note=linqLive?'':'<div class="sim-note"><span class="sim">simulated</span><span>No LINQ_API_TOKEN â€” printed to server console.</span></div>';
+    return note+'<div class="thread">'+msgs.map(function(x){var side=(approver&&x.to===approver)?' to-approver':'';return '<div class="msg'+side+'"><div class="msg-meta">'+esc(x.kind.replace(/_/g,' '))+' Â· '+esc(x.to)+' Â· '+timeAgo(x.at)+'</div><div class="bubble">'+esc(x.body)+'</div></div>';}).join('')+'</div>';
   }
-
   function detail(m){
-    var dead=isDead(m.state), spent=(m.outcome&&m.outcome.amountCapturedCents)||0, pips='';
+    var dead=isDead(m.state),spent=(m.outcome&&m.outcome.amountCapturedCents)||0,pips='';
     for(var i=0;i<Math.min(m.scope.maxUses,8);i++) pips+='<span class="pip'+(i<m.scope.usesConsumed?' spent':'')+'"></span>';
-
-    els.dHead.innerHTML='<span class="state '+(STATE_CLASS[m.state]||'dead')+'">'+esc(m.state.replace(/_/g,' '))+'</span>'
-      +'<span class="id">'+esc(m.id)+'</span>'
-      +'<button class="drawer-close" id="dclose" aria-label="Close">Close</button>';
-
+    var badgeCls=STATE_CLASS[m.state]||'dead';
+    els.dHead.innerHTML='<span class="badge '+badgeCls+'">'+esc(m.state.replace(/_/g,' '))+'</span>'
+      +'<span style="font-size:13px;font-weight:600;color:var(--text)">'+esc(m.scope.merchant)+'</span>'
+      +'<span style="font-size:11px;font-family:monospace;color:var(--text-3)">'+esc(m.id)+'</span>'
+      +'<button class="drawer-close" id="dclose">Close âœ•</button>';
     var acts='';
     if(m.state==='PENDING_APPROVAL'){
       acts='<button class="go" data-act="approve" data-id="'+m.id+'">Approve</button>'
@@ -443,8 +418,6 @@ header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:2
     }else if(['AUTHORIZED','PROVISIONED','EXECUTING'].indexOf(m.state)!==-1){
       acts='<button class="kill" data-act="revoke" data-id="'+m.id+'">Revoke now</button>';
     }
-    // Only offered once the mandate is closed — the point is proving a spent or
-    // withdrawn mandate cannot be charged again.
     if(m.state==='REVOKED'||m.state==='COMPLETED'){
       acts+='<button class="probe" data-probe="'+m.id+'">Simulate rogue re-charge</button>';
     }
@@ -477,154 +450,39 @@ header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:2
           +(m.prava.reportedStatus?'<div class="cred-row"><span class="cred-k">Reported</span><span class="cred-v">'+esc(m.prava.reportedStatus)+(m.prava.visaConfirmation?' · visa '+esc(m.prava.visaConfirmation):'')+'</span></div>':'')
         +'</div>'
       +'</section>'
-
       +'<section class="sect"><h3>Approval chain</h3><div class="panel">'
         +'<div class="cred-row"><span class="cred-k">Requested by</span><span class="cred-v">'+esc(m.requesterPhone)+'</span></div>'
         +'<div class="cred-row"><span class="cred-k">Approver</span><span class="cred-v">'+esc(m.approverPhone||'same as requester')+'</span></div>'
         +'<div class="cred-row"><span class="cred-k">Authorized by</span><span class="cred-v">'+esc(m.authorizedBy||'not yet')+'</span></div>'
         +(m.purpose?'<div class="cred-row"><span class="cred-k">Purpose</span><span class="cred-v">'+esc(m.purpose)+'</span></div>':'')
-      +'</div>'+(acts?'<div class="acts">'+acts+'</div>':'')+'<div id="probe-out"></div></section>'
-
-      +(m.outcome&&m.outcome.gatewayMessage?'<section class="sect"><h3>Gateway said</h3><div class="gateway">'+esc(m.outcome.gatewayMessage)+'</div></section>':'')
+      +'</div>'+(acts?'<div class="acts" style="margin-top:10px">'+acts+'</div>':'')+'<div id="probe-out"></div></section>'
+      +(m.outcome&&m.outcome.gatewayMessage?'<section class="sect"><h3>Gateway said</h3><div class="panel" style="font-family:monospace;font-size:12px;word-break:break-word">'+esc(m.outcome.gatewayMessage)+'</div></section>':'')
       +'<section class="sect"><h3>Conversation</h3><div class="panel">'+thread(m)+'</div></section>'
       +'<section class="sect"><h3>Audit trail</h3><div class="panel">'+timeline(m.audit||[])+'</div></section>';
-
     document.getElementById('dclose').addEventListener('click',closeDrawer);
   }
-
-  async function openDrawer(id){
-    try{
-      // Always refetch: the list snapshot lacks nothing, but the drawer is the
-      // screen someone acts from, so it should never show stale authority.
-      var r=await api('/api/mandates/'+encodeURIComponent(id));
-      openId=id; lastFocus=document.activeElement;
-      detail(r.mandate);
-      els.scrim.classList.add('open'); els.drawer.classList.add('open');
-      els.drawer.focus();
-    }catch(err){ fail(err.message); }
-  }
-  function closeDrawer(){
-    openId=null;
-    els.scrim.classList.remove('open'); els.drawer.classList.remove('open');
-    if(lastFocus&&lastFocus.focus) lastFocus.focus();
-  }
-  var lastDrawerKey = '';
+  async function openDrawer(id){try{var r=await api('/api/mandates/'+encodeURIComponent(id));openId=id;lastFocus=document.activeElement;detail(r.mandate);els.scrim.classList.add('open');els.drawer.classList.add('open');els.drawer.focus();}catch(err){fail(err.message);}}
+  function closeDrawer(){openId=null;els.scrim.classList.remove('open');els.drawer.classList.remove('open');if(lastFocus&&lastFocus.focus)lastFocus.focus();}
+  var lastDrawerKey='';
   async function refreshDrawer(){
-    if(openId){
-      try{
-        var m = (await api('/api/mandates/'+encodeURIComponent(openId))).mandate;
-        var key = m.id + ':' + m.state + ':' + m.updatedAt + ':' + (m.outcome ? m.outcome.amountCapturedCents : 0) + ':' + (m.audit ? m.audit.length : 0);
-        if(lastDrawerKey !== key){
-          var probeOutEl = document.getElementById('probe-out');
-          var probeSaved = probeOutEl ? probeOutEl.innerHTML : '';
-          detail(m);
-          if(probeSaved){
-            var el = document.getElementById('probe-out');
-            if(el) el.innerHTML = probeSaved;
-          }
-          lastDrawerKey = key;
-        }
-      }catch(e){}
-    } else {
-      lastDrawerKey = '';
-    }
+    if(openId){try{var m=(await api('/api/mandates/'+encodeURIComponent(openId))).mandate;var key=m.id+':'+m.state+':'+m.updatedAt+':'+(m.outcome?m.outcome.amountCapturedCents:0)+':'+(m.audit?m.audit.length:0);if(lastDrawerKey!==key){var probeOutEl=document.getElementById('probe-out');var probeSaved=probeOutEl?probeOutEl.innerHTML:'';detail(m);if(probeSaved){var el=document.getElementById('probe-out');if(el)el.innerHTML=probeSaved;}lastDrawerKey=key;}}catch(e){}}else{lastDrawerKey='';}
   }
-
-  /* ---- data -------------------------------------------------------------- */
-
-  async function refresh(){
-    try{
-      var r=await Promise.all([api('/api/mandates?limit=40'),api('/api/summary')]);
-      clearFail();
-      els.org.textContent=r[1].org;
-      els.pulse.textContent='live';
-      render(r[0].mandates,r[1].summary);
-      await refreshDrawer();
-    }catch(err){ fail(err.message+' — is the server running?'); }
-  }
-
-  async function boot(){
-    try{
-      var p=await api('/api/policy');
-      els.policy.innerHTML=p.summary.map(function(s){return '<span>'+esc(s)+'</span>';}).join('')+'<span>policy <b>'+esc(p.version)+'</b></span>';
-    }catch(e){ els.policy.textContent='policy unavailable'; }
-    try{ linqLive=(await api('/ready')).integrations.linq===true; }catch(e){}
-  }
-
-  /* ---- events ------------------------------------------------------------ */
-
-  els.compose.addEventListener('submit',async function(ev){
-    ev.preventDefault();
-    var text=els.text.value.trim();
-    if(!text) return;
-    els.send.disabled=true; els.send.textContent='Thinking…';
-    try{
-      var result=await api('/api/simulate/message',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({from:'+15550100200',text:text})});
-      els.parse.innerHTML=parseCard(text,result);
-      els.text.value=''; clearFail();
-      await refresh();
-    }catch(err){ fail(err.message); }
-    finally{ els.send.disabled=false; els.send.textContent='Send'; }
-  });
-
-  document.querySelectorAll('[data-fill]').forEach(function(b){
-    b.addEventListener('click',function(){ els.text.value=b.getAttribute('data-fill'); els.text.focus(); });
-  });
-
-  els.parse.addEventListener('click',function(ev){
-    if(ev.target.closest('[data-close-parse]')) els.parse.innerHTML='';
-  });
-
-  async function act(btn){
-    var id=btn.getAttribute('data-id'), a=btn.getAttribute('data-act');
-    if(a==='revoke'&&!confirm('Revoke this mandate? The credential stops working immediately, even mid-checkout.')) return;
-    btn.disabled=true; btn.textContent='Working…';
-    try{ await api('/api/mandates/'+encodeURIComponent(id)+'/'+a,{method:'POST'}); clearFail(); await refresh(); }
-    catch(err){ fail(err.message); btn.disabled=false; }
-  }
-
-  async function probe(btn){
-    var id=btn.getAttribute('data-probe');
-    btn.disabled=true; btn.textContent='Attempting…';
-    var out=document.getElementById('probe-out');
-    try{
-      var r=await api('/api/mandates/'+encodeURIComponent(id)+'/simulate-second-charge',{method:'POST'});
-      var html='<div class="probe-out'+(r.blocked?'':' ran')+'">'
-        +'<b>'+(r.blocked?'Blocked.':'Ran.')+'</b> '+esc(r.reason)+'</div>';
-      out.innerHTML=html;
-      await refresh();
-      var el=document.getElementById('probe-out'); if(el) el.innerHTML=html;
-    }catch(err){
-      var errHtml='<div class="probe-out">'+esc(err.message)+'</div>';
-      out.innerHTML=errHtml;
-      var el=document.getElementById('probe-out'); if(el) el.innerHTML=errHtml;
-    }
-    finally{ btn.disabled=false; btn.textContent='Simulate rogue re-charge'; }
-  }
-
-  function wire(root){
-    root.addEventListener('click',function(ev){
-      var probeBtn=ev.target.closest('button[data-probe]');
-      if(probeBtn){ ev.stopPropagation(); probe(probeBtn); return; }
-      var actBtn=ev.target.closest('button[data-act]');
-      if(actBtn){ ev.stopPropagation(); act(actBtn); return; }
-      var card=ev.target.closest('[data-open]');
-      if(card) openDrawer(card.getAttribute('data-open'));
-    });
-  }
-  wire(els.slips); wire(els.dBody);
-
-  els.slips.addEventListener('keydown',function(ev){
-    if(ev.key!=='Enter'&&ev.key!==' ') return;
-    var card=ev.target.closest('[data-open]');
-    if(card){ ev.preventDefault(); openDrawer(card.getAttribute('data-open')); }
-  });
-
+  async function refresh(){try{var r=await Promise.all([api('/api/mandates?limit=40'),api('/api/summary')]);clearFail();els.org.textContent=r[1].org;els.pulse.textContent='live';render(r[0].mandates,r[1].summary);await refreshDrawer();}catch(err){fail(err.message+' â€” is the server running?');}}
+  async function boot(){try{var p=await api('/api/policy');els.policy.innerHTML=p.summary.map(function(s){return '<span>'+esc(s)+'</span>';}).join('')+'<span>policy <b>'+esc(p.version)+'</b></span>';}catch(e){els.policy.textContent='policy unavailable';}try{linqLive=(await api('/ready')).integrations.linq===true;}catch(e){}}
+  els.send.addEventListener('click',async function(){var text=els.text.value.trim();if(!text)return;els.send.disabled=true;els.send.textContent='Thinkingâ€¦';try{var result=await api('/api/simulate/message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({from:'+15550100200',text:text})});els.parse.innerHTML=parseCard(text,result);els.text.value='';clearFail();await refresh();}catch(err){fail(err.message);}finally{els.send.disabled=false;els.send.textContent='Send Request';}});
+  els.text.addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();els.send.click();}});
+  document.querySelectorAll('[data-fill]').forEach(function(b){b.addEventListener('click',function(){els.text.value=b.getAttribute('data-fill');els.text.focus();});});
+  els.parse.addEventListener('click',function(ev){if(ev.target.closest('[data-close-parse]'))els.parse.innerHTML='';});
+  document.getElementById('refresh-btn').addEventListener('click',refresh);
+  els.search.addEventListener('input',function(){searchQ=els.search.value.trim();render(allMandates,null);});
+  async function act(btn){var id=btn.getAttribute('data-id'),a=btn.getAttribute('data-act');if(a==='revoke'&&!confirm('Revoke this mandate? The credential stops working immediately, even mid-checkout.'))return;btn.disabled=true;btn.textContent='Workingâ€¦';try{await api('/api/mandates/'+encodeURIComponent(id)+'/'+a,{method:'POST'});clearFail();await refresh();}catch(err){fail(err.message);btn.disabled=false;}}
+  async function probe(btn){var id=btn.getAttribute('data-probe');btn.disabled=true;btn.textContent='Attemptingâ€¦';var out=document.getElementById('probe-out');try{var r=await api('/api/mandates/'+encodeURIComponent(id)+'/simulate-second-charge',{method:'POST'});var html='<div class="probe-out'+(r.blocked?'':' ran')+'"><b>'+(r.blocked?'Blocked.':'Ran.')+'</b> '+esc(r.reason)+'</div>';out.innerHTML=html;await refresh();var el=document.getElementById('probe-out');if(el)el.innerHTML=html;}catch(err){var errHtml='<div class="probe-out">'+esc(err.message)+'</div>';out.innerHTML=errHtml;var el=document.getElementById('probe-out');if(el)el.innerHTML=errHtml;}finally{btn.disabled=false;btn.textContent='Simulate rogue re-charge';}}
+  function wire(root){root.addEventListener('click',function(ev){var probeBtn=ev.target.closest('button[data-probe]');if(probeBtn){ev.stopPropagation();probe(probeBtn);return;}var actBtn=ev.target.closest('button[data-act]');if(actBtn){ev.stopPropagation();act(actBtn);return;}var card=ev.target.closest('[data-open]');if(card)openDrawer(card.getAttribute('data-open'));});}
+  wire(els.slips);wire(els.dBody);
+  els.slips.addEventListener('keydown',function(ev){if(ev.key!=='Enter'&&ev.key!==' ')return;var card=ev.target.closest('[data-open]');if(card){ev.preventDefault();openDrawer(card.getAttribute('data-open'));}});
   els.scrim.addEventListener('click',closeDrawer);
-  document.addEventListener('keydown',function(ev){ if(ev.key==='Escape'&&openId) closeDrawer(); });
-
-  boot(); refresh(); setInterval(refresh,3000);
+  document.addEventListener('keydown',function(ev){if(ev.key==='Escape'&&openId)closeDrawer();});
+  boot();refresh();setInterval(refresh,3000);
 })();
 </script>
 </body>
