@@ -265,19 +265,6 @@ export class MandateOrchestrator {
     });
 
     const grant = mintGrant(mandateId, 'approve', spendPolicy.mandateTtlMinutes);
-
-    // When Prava returns its hosted passkey surface, that is the real
-    // authorization UI. We send the approver there and have it redirect back to
-    // our signed grant, so the return leg is verifiable rather than a bare id.
-    if (session.approvalUrl) {
-      try {
-        const url = new URL(session.approvalUrl);
-        url.searchParams.set('redirect_url', `${env.PUBLIC_BASE_URL}/authorize/callback?token=${grant}`);
-        return url.toString();
-      } catch {
-        /* unparseable URL: fall through to our own page */
-      }
-    }
     return `${env.PUBLIC_BASE_URL}/authorize/${grant}`;
   }
 
