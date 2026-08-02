@@ -57,9 +57,14 @@ export function createApp(): Express {
     res.type('text/css').setHeader('Cache-Control', 'public, max-age=300');
     res.sendFile(join(here, 'web', 'tokens.css'));
   });
+  app.get('/logo.png', (_req, res) => {
+    res.type('image/png').setHeader('Cache-Control', 'public, max-age=3600');
+    res.sendFile(join(here, 'web', 'logo.png'));
+  });
   app.get('/dashboard', (_req, res) => res.sendFile(join(here, 'web', 'dashboard.html')));
   app.get('/request', (_req, res) => res.sendFile(join(here, 'web', 'request.html')));
   app.get('/', (_req, res) => res.redirect(302, '/request'));
+
 
   app.use(notFound);
   app.use(errorHandler);

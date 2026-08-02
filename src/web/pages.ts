@@ -175,8 +175,9 @@ function shell(title: string, inner: string, extraScript = ''): string {
 }
 
 function masthead(doctype: string): string {
-  return `<header class="masthead"><span class="org">${escapeHtml(env.ORG_NAME)}</span><span class="doctype">${escapeHtml(doctype)}</span></header>`;
+  return `<header class="masthead" style="display:flex;align-items:center;gap:10px"><img src="/logo.png" alt="CardGuard" style="width:26px;height:26px;border-radius:50%;object-fit:cover"><span class="org">${escapeHtml(env.ORG_NAME)}</span><span class="doctype" style="margin-left:auto">${escapeHtml(doctype)}</span></header>`;
 }
+
 
 function guardrailBand(mandate: Mandate): string {
   const remaining = Math.max(0, mandate.scope.maxUses - mandate.scope.usesConsumed);
