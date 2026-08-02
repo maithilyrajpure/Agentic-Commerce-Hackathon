@@ -393,15 +393,18 @@ export class PravaClient {
     if (!capabilities.prava || !sessionId || sessionId.startsWith('sim_')) {
       return { ok: false, detail: 'simulated (no PRAVA_API_KEY or sim_ session)' };
     }
-    const request: ReportChargeRequest = {
+    const request = {
+      status: outcome.approved ? 'APPROVED' : 'DECLINED',
       txn_status: outcome.approved ? 'APPROVED' : 'DECLINED',
       txn_type: 'PURCHASE',
+      raw_response: outcome.approved ? 'Transaction approved at merchant gateway' : 'Declined by merchant payment gateway',
       ...(outcome.authorizationCode ? { authorization_code: outcome.authorizationCode.slice(0, 128) } : {}),
       ...(outcome.responseCode ? { response_code: outcome.responseCode.slice(0, 2) } : {}),
       ...(outcome.approved && outcome.amountCents !== undefined
         ? { amount_paid: centsToAmountString(outcome.amountCents) }
         : {}),
     };
+
     try {
       const response = await this.http.post<ReportChargeResponse>(
         PRAVA_ROUTES.reportSessionStatus(sessionId),
