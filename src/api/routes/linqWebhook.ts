@@ -47,8 +47,8 @@ linqRouter.post('/webhooks/linq', webhookLimiter, (req, res) => {
     log.info({ body: scrubDeep(req.body) }, 'webhook payload had no usable message');
     return;
   }
-  if (message.eventType && !/chat|message|inbound/i.test(message.eventType)) {
-    log.info({ eventType: message.eventType }, 'ignoring non-message event');
+  if (message.eventType && !/(message|chat)\.(created|received|inbound)/i.test(message.eventType)) {
+    log.info({ eventType: message.eventType }, 'ignoring non-inbound event');
     return;
   }
 

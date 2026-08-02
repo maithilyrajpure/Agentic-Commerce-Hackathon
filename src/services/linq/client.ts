@@ -108,10 +108,48 @@ export function parseInboundMessage(payload: unknown): InboundMessage | null {
   if (!payload || typeof payload !== 'object') return null;
   const root = payload as Record<string, any>;
 
-  const eventType: string = root.type ?? root.event ?? root.event_type ?? '';
+  const eventType: string = String(root.type ?? root.event ?? root.event_type ?? '');
   const data = (root.data ?? root.message ?? root.payload ?? root) as Record<string, any>;
 
-  // Extract text from parts array (Linq v3 format) or text string
+  // 1. Ignore delivery / read / status events
+  if (/delivered|read|sent|failed|status/i.test(eventType)) {
+    return null;
+  }
+
+  // 2. Ignore outbound messages
+  const direction = String(data.direction ?? root.direction ?? '');
+  if (direction.toLowerCase() === 'outbound') {
+    return null;
+  }
+
+  // 3. Ignore messages sent by ourselves (agent self-echo guard)
+  const isMe = Boolean(
+    data.is_me ||
+    data.sender_handle?.is_me ||
+    data.from_handle?.is_me ||
+    data.owner_handle?.is_me ||
+    root.is_me
+  );
+
+  const rawFrom =
+    (typeof data.from === 'string' ? data.from : undefined) ??
+    (typeof data.from_number === 'string' ? data.from_number : undefined) ??
+    (typeof data.sender_handle === 'string' ? data.sender_handle : data.sender_handle?.handle) ??
+    (typeof data.from_handle === 'string' ? data.from_handle : data.from_handle?.handle) ??
+    (typeof data.sender === 'string' ? data.sender : data.sender?.handle) ??
+    (typeof data.author === 'string' ? data.author : data.author?.handle) ??
+    (typeof data.handle === 'string' ? data.handle : data.handle?.handle) ??
+    (typeof root.from === 'string' ? root.from : undefined) ??
+    '';
+
+  const agentPhone = env.LINQ_PHONE_NUMBER ? normalizePhone(env.LINQ_PHONE_NUMBER) : '+15124371883';
+  const senderPhone = rawFrom ? normalizePhone(String(rawFrom)) : '';
+
+  if (isMe || (agentPhone && senderPhone && agentPhone === senderPhone)) {
+    return null;
+  }
+
+  // Extract text from parts array or text string
   let text = '';
   if (Array.isArray(data.parts)) {
     const textPart = data.parts.find((p: any) => p.type === 'text' || p.value || p.text);
@@ -124,32 +162,11 @@ export function parseInboundMessage(payload: unknown): InboundMessage | null {
     text = data.text ?? data.body ?? data.message ?? data.content ?? (typeof root.text === 'string' ? root.text : '');
   }
 
-  const fromPhone: string =
-    data.from ??
-    data.from_number ??
-    data.fromPhone ??
-    data.sender ??
-    data.phone ??
-    data.author ??
-    data.handle ??
-    data.sender_handle ??
-    root.from ??
-    root.sender ??
-    '';
   const messageId: string | undefined = data.id ?? data.message_id ?? data.messageId ?? root.id;
 
-  // Ignore messages sent by ourselves (agent outbound self-echo loop guard)
-  const isMe = Boolean(data.is_me || data.from_handle?.is_me || root.is_me);
-  const agentPhone = env.LINQ_PHONE_NUMBER ? normalizePhone(env.LINQ_PHONE_NUMBER) : '+15124371883';
-  const senderPhone = fromPhone ? normalizePhone(String(fromPhone)) : '';
+  if (!rawFrom || typeof text !== 'string' || !text.trim()) return null;
 
-  if (isMe || (agentPhone && senderPhone && agentPhone === senderPhone)) {
-    return null;
-  }
-
-  if (!fromPhone || typeof text !== 'string' || !text.trim()) return null;
-
-  return { eventType: eventType || 'message.created', fromPhone: String(fromPhone), text: text.trim(), messageId };
+  return { eventType: eventType || 'message.created', fromPhone: String(rawFrom), text: text.trim(), messageId };
 }
 
 /** Normalize phone numbers so "+1 555 000 1111" and "+15550001111" are one person. */
