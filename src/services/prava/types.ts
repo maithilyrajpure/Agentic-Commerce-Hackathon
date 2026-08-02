@@ -109,6 +109,17 @@ export interface ReportChargeRequest {
   amount_paid?: string;
 }
 
+export interface ReportSessionStatusRequest {
+  txn_ref_id?: string;
+  txn_status: 'APPROVED' | 'DECLINED';
+  status?: 'APPROVED' | 'DECLINED';
+  txn_type?: string;
+  raw_response?: string;
+  authorization_code?: string;
+  response_code?: string;
+  amount_paid?: string;
+}
+
 // --- Responses -------------------------------------------------------------
 
 export interface CreateSessionResponse {

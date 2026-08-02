@@ -597,7 +597,7 @@ export class MandateOrchestrator {
         capturedAt: new Date().toISOString(),
       };
 
-      m.prava.reportedStatus = report.request?.txn_status ?? (approved ? 'APPROVED' : 'DECLINED');
+      m.prava.reportedStatus = (report.request as any)?.txn_status ?? (approved ? 'APPROVED' : 'DECLINED');
       m.prava.visaConfirmation = report.response?.visaConfirmation;
       if (report.response?.mandateStatus) m.prava.pravaMandateStatus = report.response.mandateStatus;
 

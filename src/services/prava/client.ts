@@ -18,6 +18,7 @@ import {
   type PurchaseContextEntry,
   type ReportChargeRequest,
   type ReportChargeResponse,
+  type ReportSessionStatusRequest,
 } from './types.js';
 
 /**
@@ -74,7 +75,7 @@ export interface ReportResult {
   detail: string;
   /** The exact response body, kept verbatim as transaction evidence. */
   response?: ReportChargeResponse;
-  request?: ReportChargeRequest;
+  request?: ReportChargeRequest | ReportSessionStatusRequest | Record<string, unknown>;
 }
 
 export class PravaClient {
@@ -388,15 +389,17 @@ export class PravaClient {
       authorizationCode?: string;
       responseCode?: string;
       amountCents?: number;
+      txnRefId?: string;
     },
   ): Promise<ReportResult> {
     if (!capabilities.prava || !sessionId || sessionId.startsWith('sim_')) {
       return { ok: false, detail: 'simulated (no PRAVA_API_KEY or sim_ session)' };
     }
-    const request = {
+    const txnStatus: 'APPROVED' | 'DECLINED' = outcome.approved ? 'APPROVED' : 'DECLINED';
+    const request: ReportSessionStatusRequest = {
       txn_ref_id: outcome.txnRefId ?? 'tli_001',
-      txn_status: outcome.approved ? 'APPROVED' : 'DECLINED',
-      status: outcome.approved ? 'APPROVED' : 'DECLINED',
+      txn_status: txnStatus,
+      status: txnStatus,
       txn_type: 'PURCHASE',
       raw_response: outcome.approved ? 'Transaction approved at merchant gateway' : 'Declined by merchant payment gateway',
       ...(outcome.authorizationCode ? { authorization_code: outcome.authorizationCode.slice(0, 128) } : {}),
