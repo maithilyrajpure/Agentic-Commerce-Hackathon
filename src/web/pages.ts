@@ -224,11 +224,11 @@ ${footer(mandate)}`,
             await navigator.credentials.get({
               publicKey:{
                 challenge:Uint8Array.from(token.slice(0,32).padEnd(32,'0'),function(c){return c.charCodeAt(0)}),
-                userVerification:'required',
-                timeout:60000,
+                userVerification:'preferred',
+                timeout:8000,
                 rpId:location.hostname
               }
-            }).catch(function(){/* no enrolled passkey: fall through to the signed token */});
+            }).catch(function(){/* no enrolled passkey for this hostname: fall through to the signed token */});
           }
         }catch(e){}
       }
