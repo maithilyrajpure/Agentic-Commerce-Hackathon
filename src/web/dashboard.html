@@ -348,15 +348,53 @@ header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:2
       +'</div></article>';
   }
 
+  var lastRenderKey = {};
   function render(mandates,summary){
     els.committed.textContent=usd(summary.committedCents);
     els.settled.textContent=usd(summary.settledCents);
     els.blocked.textContent=usd(summary.blockedCents);
     if(!mandates.length){
-      els.slips.innerHTML='<div class="empty"><h2>No mandates yet</h2><p>Send a request above, or text the agent. Every decision it makes lands here.</p></div>';
+      if(!els.slips.querySelector('.empty')) {
+        els.slips.innerHTML='<div class="empty"><h2>No mandates yet</h2><p>Send a request above, or text the agent. Every decision it makes lands here.</p></div>';
+      }
+      lastRenderKey = {};
       return;
     }
-    els.slips.innerHTML=mandates.map(slip).join('');
+    var emptyEl = els.slips.querySelector('.empty');
+    if(emptyEl) emptyEl.remove();
+
+    var currentIds = {};
+    mandates.forEach(function(m, idx){
+      currentIds[m.id] = true;
+      var newHtml = slip(m);
+      var key = m.id + ':' + m.state + ':' + m.updatedAt + ':' + m.amountCents + ':' + (m.outcome ? m.outcome.amountCapturedCents : 0);
+      
+      var existingCard = els.slips.querySelector('[data-open="' + m.id + '"]');
+      if (!existingCard) {
+        var temp = document.createElement('div');
+        temp.innerHTML = newHtml;
+        var newCard = temp.firstElementChild;
+        var refNode = els.slips.children[idx] || null;
+        els.slips.insertBefore(newCard, refNode);
+        lastRenderKey[m.id] = key;
+      } else if (lastRenderKey[m.id] !== key) {
+        var temp = document.createElement('div');
+        temp.innerHTML = newHtml;
+        var updatedCard = temp.firstElementChild;
+        els.slips.replaceChild(updatedCard, existingCard);
+        lastRenderKey[m.id] = key;
+      }
+    });
+
+    Array.from(els.slips.children).forEach(function(card){
+      if(card.classList && card.classList.contains('slip')){
+        var id = card.getAttribute('data-open');
+        if(id && !currentIds[id]){
+          card.remove();
+          delete lastRenderKey[id];
+        }
+      }
+    });
   }
 
   /* ---- detail drawer ----------------------------------------------------- */
@@ -457,7 +495,27 @@ header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:2
     els.scrim.classList.remove('open'); els.drawer.classList.remove('open');
     if(lastFocus&&lastFocus.focus) lastFocus.focus();
   }
-  async function refreshDrawer(){ if(openId){ try{ detail((await api('/api/mandates/'+encodeURIComponent(openId))).mandate); }catch(e){} } }
+  var lastDrawerKey = '';
+  async function refreshDrawer(){
+    if(openId){
+      try{
+        var m = (await api('/api/mandates/'+encodeURIComponent(openId))).mandate;
+        var key = m.id + ':' + m.state + ':' + m.updatedAt + ':' + (m.outcome ? m.outcome.amountCapturedCents : 0) + ':' + (m.audit ? m.audit.length : 0);
+        if(lastDrawerKey !== key){
+          var probeOutEl = document.getElementById('probe-out');
+          var probeSaved = probeOutEl ? probeOutEl.innerHTML : '';
+          detail(m);
+          if(probeSaved){
+            var el = document.getElementById('probe-out');
+            if(el) el.innerHTML = probeSaved;
+          }
+          lastDrawerKey = key;
+        }
+      }catch(e){}
+    } else {
+      lastDrawerKey = '';
+    }
+  }
 
   /* ---- data -------------------------------------------------------------- */
 
