@@ -112,6 +112,34 @@ button:active{transform:translateY(1px)}
 .linklike[hidden]{display:none}
 
 
+/* Prava hosted setup. The iframe is where card entry and the Visa passkey
+   actually happen — it is Prava's UI, not ours, and it is framed as the main
+   event of the page rather than an implementation detail. */
+.prava-panel{
+  border:1px solid var(--rule); border-radius:var(--radius); overflow:hidden;
+  margin-bottom:18px; background:var(--card);
+}
+.prava-panel-head{
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:10px 14px; border-bottom:1px solid var(--rule); background:#F7FAFC;
+}
+.prava-panel-head .k{font-family:var(--font-display); font-size:10px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-2)}
+.prava-panel iframe{display:block; width:100%; height:520px; border:0; background:#fff}
+.steps{list-style:none; margin-bottom:14px}
+.steps li{display:flex; gap:10px; align-items:baseline; font-size:13px; color:var(--ink-2); padding:4px 0}
+.steps .n{
+  font-family:var(--font-mono); font-size:11px; font-weight:600; flex:none;
+  width:20px; height:20px; border-radius:50%; border:1px solid var(--rule);
+  display:inline-flex; align-items:center; justify-content:center; color:var(--ink-3);
+}
+.steps li.done .n{background:var(--ok); border-color:var(--ok); color:#fff}
+.steps li.done{color:var(--ink)}
+.simbadge{
+  display:inline-flex; align-items:center; gap:7px; margin-bottom:14px;
+  font-family:var(--font-mono); font-size:11px; letter-spacing:.06em;
+  padding:5px 10px; border:1px dashed var(--limit); border-radius:2px; color:var(--limit);
+}
+
 .stamp{
   display:inline-flex; align-items:center; gap:7px;
   font-family:var(--font-display); font-size:11px; font-weight:700;
@@ -196,35 +224,108 @@ export function approvalPage(mandate: Mandate, token: string): string {
   const who = mandate.requesterName ?? mandate.requesterPhone;
   const reasons = mandate.policyReasons.map((r) => `<li>${escapeHtml(r)}</li>`).join('');
 
-  return shell(
-    `Approve ${formatUsd(mandate.amountCents)} at ${mandate.scope.merchant}`,
-    `${masthead('AUTHORIZATION REQUEST')}
-<div class="body">
-  <span class="stamp wait"><span class="dot live"></span>Awaiting your passkey</span>
-  <h1>Release ${formatUsd(mandate.amountCents)} to ${escapeHtml(mandate.scope.merchant)}?</h1>
-  <p class="lede"><strong>${escapeHtml(who)}</strong> asked for ${escapeHtml(mandate.purpose)}${mandate.seats ? ` for ${mandate.seats} seats` : ''}.</p>
-  ${guardrailBand(mandate)}
-  <ul class="reasons">${reasons}</ul>
-  <div class="why" id="why" hidden>
-    <label for="reason">Why are you declining?</label>
-    <input id="reason" type="text" maxlength="200" autocomplete="off"
-           placeholder="e.g. we already have seats on the team plan">
-    <p>Optional, but the requester sees this verbatim. Press Decline again to confirm.</p>
+  // A live Prava setup session exists when the client returned an iframe URL
+  // and the session is not the sim_ placeholder. That URL is Prava's hosted
+  // surface: card entry, then the Visa passkey, then the mandate is created
+  // upstream. This page's job is to put that surface front and centre and to
+  // refuse to offer a Confirm button until Prava reports the ceremony done.
+  const pravaUrl = mandate.prava.authorizationUrl;
+  const live = Boolean(pravaUrl && mandate.prava.sessionId && !mandate.prava.sessionId.startsWith('sim_'));
+
+  const pravaBlock = live
+    ? `<ol class="steps" id="steps">
+  <li id="step1"><span class="n">1</span><span>Enter the payment card and verify with your <strong>Visa passkey</strong> in Prava below. This creates the mandate — a standing authorization scoped to ${escapeHtml(mandate.scope.merchant)}, capped at ${formatUsd(mandate.scope.perTransactionCapCents)}, ${mandate.scope.maxUses} use${mandate.scope.maxUses === 1 ? '' : 's'}.</span></li>
+  <li id="step2"><span class="n">2</span><span>Confirm, and the agent charges the mandate for single-use credentials and checks out.</span></li>
+</ol>
+<div class="prava-panel">
+  <div class="prava-panel-head">
+    <span class="k">Prava · mandate setup ${escapeHtml(mandate.prava.sessionId ?? '')}</span>
+    <a href="${escapeHtml(pravaUrl!)}" target="_blank" rel="noopener">Open in a new tab ↗</a>
   </div>
-  <div class="codebox" id="codebox" hidden>
+  <iframe id="prava" src="${escapeHtml(pravaUrl!)}" title="Prava mandate setup"
+    allow="publickey-credentials-get *; publickey-credentials-create *; payment *; clipboard-write *"
+    sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"></iframe>
+</div>`
+    : `<span class="simbadge">◌ simulated session — PRAVA_API_KEY not configured; no real mandate will be created</span>`;
+
+  const approveButton = live
+    ? `<button class="primary" id="approve" disabled>Waiting for your passkey in Prava…</button>`
+    : `<button class="primary" id="approve">Approve with fingerprint</button>`;
+
+  const fallbackBits = live
+    ? ''
+    : `<div class="codebox" id="codebox" hidden>
     <label for="code">Enter the code from your message</label>
     <input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]*" placeholder="6-digit code">
     <p>Your approval message ends with a fallback code. Type it, then Approve.</p>
-  </div>
-  <div class="actions">
-    <button class="primary" id="approve">Approve with fingerprint</button>
-    <button class="secondary" id="decline">Decline</button>
-  </div>
-  <p class="gatemsg" id="gatemsg" hidden></p>
-  <p class="alt"><button type="button" class="linklike" id="usecode">No fingerprint on this device? Use a code</button></p>
-</div>
-${footer(mandate)}`,
-    `<script>
+  </div>`;
+
+  const altRow = live
+    ? ''
+    : `<p class="alt"><button type="button" class="linklike" id="usecode">No fingerprint on this device? Use a code</button></p>`;
+
+  const liveScript = `<script>
+(function(){
+  var token=${JSON.stringify(token)};
+  var approve=document.getElementById('approve');
+  var decline=document.getElementById('decline');
+  var why=document.getElementById('why');
+  var reason=document.getElementById('reason');
+  var gatemsg=document.getElementById('gatemsg');
+  var step1=document.getElementById('step1');
+  var step2=document.getElementById('step2');
+  var armed=false, ready=false, stopped=false;
+
+  function setMsg(t){ if(!gatemsg) return; if(t){ gatemsg.textContent=t; gatemsg.hidden=false; } else { gatemsg.textContent=''; gatemsg.hidden=true; } }
+
+  async function post(action){
+    var body={action:action, reason:(reason&&reason.value||'').trim()};
+    var res=await fetch('/authorize/'+encodeURIComponent(token),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    var html=await res.text(); document.open(); document.write(html); document.close();
+  }
+
+  // Poll Prava through our token-guarded status endpoint. The Confirm button
+  // stays dead until Prava itself reports the passkey ceremony complete and
+  // the mandate created. Nothing on this page can shortcut that.
+  async function poll(){
+    if(stopped) return;
+    try{
+      var res=await fetch('/authorize/'+encodeURIComponent(token)+'/status');
+      if(res.ok){
+        var s=await res.json();
+        if(s.prava==='authorized'){
+          ready=true;
+          if(step1) step1.classList.add('done');
+          approve.disabled=false;
+          approve.textContent='Confirm — release the card';
+          setMsg('');
+          return; // stop polling
+        }
+        if(s.state && s.state!=='PENDING_APPROVAL'){ stopped=true; location.reload(); return; }
+      }
+    }catch(e){}
+    setTimeout(poll, 2500);
+  }
+  poll();
+
+  approve.addEventListener('click', async function(){
+    if(!ready){ setMsg('Finish the card + passkey step in the Prava panel above first.'); return; }
+    approve.disabled=true; decline.disabled=true; approve.textContent='Releasing…';
+    if(step2) step2.classList.add('done');
+    try{ await post('approve'); }
+    catch(e){ approve.textContent='Could not reach the server. Try again.'; approve.disabled=false; decline.disabled=false; }
+  });
+
+  decline.addEventListener('click',function(){
+    if(!armed){ armed=true; why.hidden=false; decline.classList.add('armed'); decline.textContent='Confirm decline'; if(reason) reason.focus(); return; }
+    approve.disabled=true; decline.disabled=true; decline.textContent='Declining…';
+    post('decline').catch(function(){ decline.textContent='Could not reach the server. Try again.'; approve.disabled=false; decline.disabled=false; });
+  });
+  if(reason){ reason.addEventListener('keydown',function(ev){ if(ev.key==='Enter'){ ev.preventDefault(); decline.click(); } }); }
+})();
+</script>`;
+
+  const simScript = `<script>
 (function(){
   var token=${JSON.stringify(token)};
   var approve=document.getElementById('approve');
@@ -243,11 +344,6 @@ ${footer(mandate)}`,
   function bufToB64u(buf){ var b=new Uint8Array(buf),s=''; for(var i=0;i<b.length;i++)s+=String.fromCharCode(b[i]); return btoa(s).replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=+$/,''); }
   function b64uToBuf(str){ str=str.replace(/-/g,'+').replace(/_/g,'/'); while(str.length%4)str+='='; var bin=atob(str),b=new Uint8Array(bin.length); for(var i=0;i<bin.length;i++)b[i]=bin.charCodeAt(i); return b.buffer; }
 
-  // The fingerprint gate. On a device with a sensor this MUST pass before the
-  // approval is sent: cancelling stops here. First time on a hostname we enroll
-  // a platform passkey (Touch/Face ID prompt); after that we assert it. The
-  // signed token remains the server-side authority; this is the local factor
-  // the approver actually feels.
   async function fingerprint(){
     if(!(window.PublicKeyCredential && navigator.credentials && window.isSecureContext)) return {ok:false, why:'unsupported'};
     var available=false;
@@ -315,7 +411,6 @@ ${footer(mandate)}`,
   if(usecode) usecode.addEventListener('click', function(){ enterCodeMode(''); });
   if(code) code.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); doApprove(); } });
 
-  // Declining is two taps: first reveals the reason field, second commits.
   decline.addEventListener('click',function(){
     if(!armed){ armed=true; why.hidden=false; decline.classList.add('armed'); decline.textContent='Confirm decline'; if(reason) reason.focus(); return; }
     approve.disabled=true; decline.disabled=true; decline.textContent='Declining…';
@@ -323,7 +418,34 @@ ${footer(mandate)}`,
   });
   if(reason){ reason.addEventListener('keydown',function(ev){ if(ev.key==='Enter'){ ev.preventDefault(); decline.click(); } }); }
 })();
-</script>`,
+</script>`;
+
+  return shell(
+    `Approve ${formatUsd(mandate.amountCents)} at ${mandate.scope.merchant}`,
+    `${masthead('AUTHORIZATION REQUEST')}
+<div class="body">
+  <span class="stamp wait"><span class="dot live"></span>${live ? 'Awaiting your Visa passkey via Prava' : 'Awaiting your passkey'}</span>
+  <h1>Release ${formatUsd(mandate.amountCents)} to ${escapeHtml(mandate.scope.merchant)}?</h1>
+  <p class="lede"><strong>${escapeHtml(who)}</strong> asked for ${escapeHtml(mandate.purpose)}${mandate.seats ? ` for ${mandate.seats} seats` : ''}.</p>
+  ${guardrailBand(mandate)}
+  <ul class="reasons">${reasons}</ul>
+  ${pravaBlock}
+  <div class="why" id="why" hidden>
+    <label for="reason">Why are you declining?</label>
+    <input id="reason" type="text" maxlength="200" autocomplete="off"
+           placeholder="e.g. we already have seats on the team plan">
+    <p>Optional, but the requester sees this verbatim. Press Decline again to confirm.</p>
+  </div>
+  ${fallbackBits}
+  <div class="actions">
+    ${approveButton}
+    <button class="secondary" id="decline">Decline</button>
+  </div>
+  <p class="gatemsg" id="gatemsg" hidden></p>
+  ${altRow}
+</div>
+${footer(mandate)}`,
+    live ? liveScript : simScript,
   );
 }
 
@@ -379,6 +501,10 @@ export function invalidTokenPage(reason: string): string {
     bad_code: {
       title: 'That code did not match',
       body: 'The approval code was incorrect. Open the link again from your message and re-enter the code exactly as shown.',
+    },
+    prava_incomplete: {
+      title: 'Finish the Prava step first',
+      body: 'Nothing was released. The card and Visa passkey step in Prava has not completed yet, and no spend authority exists until Prava confirms the mandate. Open the approval link again and finish the Prava panel.',
     },
   };
   const c = copy[reason] ?? copy.malformed!;

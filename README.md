@@ -92,6 +92,18 @@ An approval link arrives in a text message, and text messages get fetched by thi
 
 Built on Prava's own **Mandate** API, because Prava already models exactly this: approve once with a passkey, let an agent charge later within caps. Full detail in [PRAVA_INTEGRATION.md](./PRAVA_INTEGRATION.md).
 
+### Where you see Prava in the product
+
+With `PRAVA_API_KEY` set, every purchase surfaces Prava's own UI and lifecycle — none of it happens off-screen:
+
+- **Prava's iframe opens on the approval page.** `GET /authorize/:token` embeds the `iframe_url` returned by `POST /v1/sessions` directly in the page (`src/web/pages.ts`), with the `publickey-credentials-*` and `payment` permissions the WebAuthn ceremony needs, plus an open-in-new-tab fallback for browsers that block third-party passkeys in frames.
+- **The card is entered in Prava's hosted surface**, never in ours. Our pages have no card fields at all; the only card material we ever persist is the last four digits of the single-use token Prava mints later.
+- **The passkey verification is Prava's**, and it is the real gate, not a decoration. The page polls `GET /authorize/:token/status`, which asks Prava whether the session completed and the mandate exists. Our Confirm button is **disabled until Prava says yes**, and the server enforces the same thing: `POST /authorize/:token` (and the dashboard approve) refuse with 409 until `pravaSetupStatus()` reports the mandate created upstream. A signed link alone cannot release money.
+- **The mandate creation is observable.** The moment Prava lists the mandate for our `external_order_ref`, its id is pinned to our record (`mandate.created` in the audit trail), the step marker on the approval page flips, and the dashboard shows `PRAVA MANDATE active`.
+- **The agentic tokens are the credentials the browser agent checks out with.** After Confirm, `POST /v1/mandates/{id}/charge` mints single-use network-token credentials against the standing authorization — no second passkey — and those are what the Stagehand agent types into the merchant's payment form. The unattended path (< $25) charges an existing active mandate the same way; if the requester has never done Prava's setup, the purchase is pre-approved by policy but held until they complete the one-time card + passkey ceremony via their own link.
+
+Without a key, sessions are prefixed `sim_`, the approval page shows a **"simulated session"** badge instead of the iframe, and a local WebAuthn fingerprint stands in — loudly, never silently.
+
 1. **`POST /v1/sessions`** with a `mandate_setup` block — authorize-only. Returns the approval URL and issues **no credentials**. At the moment the approver gets the link, nothing spendable exists.
 2. **`POST /v1/mandates/{id}/charge`** — after the passkey. Mints single-use network-token credentials, no new passkey needed.
 3. **`POST /v1/mandates/{id}/charges/{txn}/report`** — settles `APPROVED` or `DECLINED` with the card network.

@@ -46,6 +46,35 @@ authorizeRouter.get(
   }),
 );
 
+/**
+ * Polled by the approval page while Prava's iframe is open.
+ *
+ * Returns whether Prava has seen the passkey and created the mandate upstream.
+ * Read-only and token-guarded: it can observe the ceremony, never perform it.
+ * The page uses this to flip its Confirm button from disabled to live the
+ * moment Prava reports the mandate — so the human watches the credential come
+ * into existence rather than taking our word for it.
+ */
+authorizeRouter.get(
+  '/authorize/:token/status',
+  authorizeLimiter,
+  asyncRoute(async (req, res) => {
+    const verification = verifyGrant(req.params.token ?? '');
+    if (!verification.ok) {
+      res.status(400).json({ error: verification.reason });
+      return;
+    }
+    const orch = await orchestrator();
+    const mandate = await orch.get(verification.grant.mandateId);
+    const prava = await orch.pravaSetupStatus(verification.grant.mandateId);
+    res.json({
+      state: mandate.state,
+      prava, // 'simulated' | 'pending' | 'authorized'
+      pravaMandateId: mandate.prava.pravaMandateId ?? null,
+    });
+  }),
+);
+
 /** The actual authorization. */
 authorizeRouter.post(
   '/authorize/:token',
@@ -92,7 +121,24 @@ authorizeRouter.post(
         return;
       }
 
-      const mandate = await orch.authorize(verification.grant.mandateId, actor);
+      // The gate the whole product hangs on: when a live Prava session exists,
+      // spend authority is granted only after Prava confirms the approver
+      // completed its hosted flow — card entered, Visa passkey verified,
+      // mandate created upstream. Our signed token proves the right person
+      // holds the link; Prava's mandate proves the ceremony happened. Both are
+      // required. Only a simulated session (no PRAVA_API_KEY) may fall back to
+      // the local fingerprint/code factor, and it is labelled as such.
+      const pravaStatus = await orch.pravaSetupStatus(verification.grant.mandateId);
+      if (pravaStatus === 'pending') {
+        log.warn('approve attempted before Prava passkey completed');
+        res.status(409).type('html').send(invalidTokenPage('prava_incomplete'));
+        return;
+      }
+
+      const mandate = await orch.authorize(
+        verification.grant.mandateId,
+        pravaStatus === 'authorized' ? `${env.APPROVER_NAME} (Prava passkey)` : actor,
+      );
       log.info('mandate authorized by approver');
       res.type('html').send(approvedPage(mandate));
     } catch (error) {

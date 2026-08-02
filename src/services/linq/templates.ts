@@ -54,6 +54,28 @@ export function autoApprovedMessage(mandate: Mandate): string {
   );
 }
 
+/**
+ * Sent to the requester when policy pre-approved the spend but no standing
+ * Prava mandate exists yet. The purchase is not blocked on a human's judgment,
+ * only on the one-time credential ceremony Prava owns: card entry plus the
+ * Visa passkey, inside Prava's own page. After that, purchases at this size
+ * run unattended against the mandate.
+ */
+export function setupRequiredMessage(mandate: Mandate, setupUrl: string): string {
+  return line(
+    `✓ Pre-approved — ${formatUsd(mandate.amountCents)} at ${mandate.scope.merchant}`,
+    '',
+    `Under the ${formatUsd(spendPolicy.autoApproveCents)} unattended limit, so no manager needed.`,
+    'One thing first: verify with your Visa passkey in Prava to create the mandate the agent will charge.',
+    scopeSummary(mandate),
+    '',
+    'Set up and buy:',
+    setupUrl,
+    '',
+    `Link expires in ${expiryPhrase(mandate)}.`,
+  );
+}
+
 /** Sent to the requester while they wait on their approver. */
 export function pendingApprovalMessage(mandate: Mandate, decision: PolicyDecision): string {
   return line(
@@ -88,10 +110,10 @@ export function approvalRequestMessage(mandate: Mandate, decision: PolicyDecisio
     '',
     `Approving releases one card: ${scopeSummary(mandate)}`,
     '',
-    'Approve with your fingerprint (or use the code if your device has no sensor):',
+    'Verify with your Visa passkey via Prava, then confirm:',
     approveUrl,
     '',
-    `Fallback code: ${approvalPin(mandate.id)}`,
+    `Fallback code (simulated sessions only): ${approvalPin(mandate.id)}`,
   );
 }
 

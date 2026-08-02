@@ -71,7 +71,22 @@ mandateRouter.post(
   asyncRoute(async (req, res) => {
     const actor = String(req.body?.actor ?? `${env.APPROVER_NAME} (dashboard)`);
     const orch = await orchestrator();
-    const mandate = await orch.authorize(req.params.id ?? '', actor);
+    // Same gate as the messaged link: a live Prava session must have completed
+    // its hosted passkey ceremony before the dashboard can grant authority.
+    const pravaStatus = await orch.pravaSetupStatus(req.params.id ?? '');
+    if (pravaStatus === 'pending') {
+      const pending = await orch.get(req.params.id ?? '');
+      res.status(409).json({
+        error: 'prava_setup_incomplete',
+        detail: 'Complete card entry and the Visa passkey in Prava first — open the approval link.',
+        authorizationUrl: pending.prava.authorizationUrl ?? null,
+      });
+      return;
+    }
+    const mandate = await orch.authorize(
+      req.params.id ?? '',
+      pravaStatus === 'authorized' ? `${env.APPROVER_NAME} (Prava passkey)` : actor,
+    );
     res.json({ mandate: toPublicMandate(mandate) });
   }),
 );

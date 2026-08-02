@@ -185,6 +185,22 @@ export class MandateOrchestrator {
   }
 
   private async applyDecision(mandateId: string, decision: PolicyDecision): Promise<InboundResult> {
+    // Pre-flight for the unattended path. "Unattended" still means charging a
+    // real Prava mandate, never bypassing it: if the requester already holds an
+    // active standing mandate (passkey verified once before), the agent charges
+    // it now; if not, the purchase stays pre-approved by policy but must wait
+    // for Prava's one-time setup — card entry plus Visa passkey in Prava's
+    // hosted iframe — before any credential exists. Decided here, before the
+    // state switch, because AUTHORIZED cannot legally return to
+    // PENDING_APPROVAL and should never have to.
+    let reusablePravaMandate: { id: string; status: string } | null = null;
+    let needsPravaSetup = false;
+    if (decision.verdict === 'auto_approve' && capabilities.prava) {
+      const existing = await pravaClient().findMandateForOrder(undefined, mandateId);
+      if (existing && existing.status === 'active') reusablePravaMandate = existing;
+      else needsPravaSetup = true;
+    }
+
     const mandate = await this.repo.withLock(mandateId, async (m) => {
       m.policyDecision = decision.verdict;
       m.policyReasons = decision.reasons;
@@ -196,9 +212,19 @@ export class MandateOrchestrator {
           transition(m, MandateState.REJECTED, 'policy-engine', decision.ruleIds.join(','));
           break;
         case 'auto_approve':
-          transition(m, MandateState.AUTHORIZED, 'policy-engine', 'within unattended limit');
-          m.authorizedAt = new Date().toISOString();
-          m.authorizedBy = 'policy-engine (auto)';
+          if (needsPravaSetup) {
+            transition(m, MandateState.PENDING_APPROVAL, 'policy-engine', 'pre-approved; Prava mandate setup required');
+            m.approverPhone = m.requesterPhone; // self-serve: requester holds the passkey
+          } else {
+            transition(m, MandateState.AUTHORIZED, 'policy-engine', 'within unattended limit');
+            m.authorizedAt = new Date().toISOString();
+            m.authorizedBy = 'policy-engine (auto)';
+            if (reusablePravaMandate) {
+              m.prava.pravaMandateId = reusablePravaMandate.id;
+              m.prava.pravaMandateStatus = reusablePravaMandate.status;
+              appendAudit(m, 'prava', 'mandate.reused', `charging standing mandate ${reusablePravaMandate.id}`);
+            }
+          }
           break;
         case 'requires_approval':
           transition(m, MandateState.PENDING_APPROVAL, 'policy-engine', decision.ruleIds.join(','));
@@ -216,8 +242,27 @@ export class MandateOrchestrator {
     }
 
     if (decision.verdict === 'auto_approve') {
+      if (needsPravaSetup) {
+        // Policy already said yes; the only thing missing is the credential
+        // ceremony Prava owns. Send the requester their own setup link — the
+        // page embeds Prava's iframe where card + Visa passkey happen.
+        const setupUrl = await this.prepareApproval(mandate.id);
+        await this.notify(
+          mandate.id,
+          mandate.requesterPhone,
+          'setup_required',
+          copy.setupRequiredMessage(mandate, setupUrl),
+          `setup:${mandate.id}`,
+        );
+        log.info('auto-approved by policy; Prava mandate setup required first');
+        return { kind: 'mandate', mandate: await this.repo.require(mandate.id) };
+      }
+
       log.info('mandate auto-authorized');
-      await this.prepareApproval(mandate.id);
+      // When a standing Prava mandate is being charged, no new setup session is
+      // needed — the charge endpoint works against the mandate id directly.
+      // Only the simulated path (no Prava key) still records a sim session.
+      if (!reusablePravaMandate) await this.prepareApproval(mandate.id);
       await this.notify(mandate.id, mandate.requesterPhone, 'auto_approved', copy.autoApprovedMessage(mandate), `auto:${mandate.id}`);
       // Fire and forget: the requester already has their confirmation, and the
       // receipt arrives when the merchant responds.
@@ -264,7 +309,15 @@ export class MandateOrchestrator {
    */
   private async prepareApproval(mandateId: string): Promise<string> {
     const mandate = await this.repo.require(mandateId);
-    const callbackUrl = `${env.PUBLIC_BASE_URL}/authorize/callback`;
+
+    // Mint the signed grant BEFORE creating the Prava session, so Prava's
+    // hosted flow can redirect straight back into our token-guarded page when
+    // the passkey ceremony finishes. The token carries the authority; Prava's
+    // redirect merely resumes the page that holds it.
+    const grant = mintGrant(mandateId, 'approve', spendPolicy.mandateTtlMinutes);
+    const approveUrl = `${env.PUBLIC_BASE_URL}/authorize/${grant}`;
+    const callbackUrl = `${env.PUBLIC_BASE_URL}/authorize/callback?token=${encodeURIComponent(grant)}`;
+
     const merchant = checkoutMerchantFor(mandate);
     const session = await pravaClient().createMandateSession(mandate, callbackUrl, merchant);
 
@@ -283,8 +336,57 @@ export class MandateOrchestrator {
       );
     });
 
-    const grant = mintGrant(mandateId, 'approve', spendPolicy.mandateTtlMinutes);
-    return `${env.PUBLIC_BASE_URL}/authorize/${grant}`;
+    return approveUrl;
+  }
+
+  /**
+   * Has the approver actually completed Prava's hosted setup — card entered,
+   * Visa passkey verified, mandate created upstream?
+   *
+   * This is the check that makes Prava's passkey the real gate rather than a
+   * decoration. It polls the session's payment-result and the mandate list; the
+   * moment Prava reports the mandate, its id is pinned to our record so the
+   * charge path never has to guess later.
+   *
+   * Returns:
+   *   'simulated'  — no PRAVA_API_KEY, session is sim_*; local fallback applies
+   *   'pending'    — live session, Prava has not seen the passkey yet
+   *   'authorized' — Prava created the mandate; spend authority may be granted
+   */
+  async pravaSetupStatus(mandateId: string): Promise<'simulated' | 'pending' | 'authorized'> {
+    const mandate = await this.repo.require(mandateId);
+    const sessionId = mandate.prava.sessionId;
+
+    if (!capabilities.prava || !sessionId || sessionId.startsWith('sim_')) return 'simulated';
+    if (mandate.prava.pravaMandateId) return 'authorized';
+
+    const prava = pravaClient();
+
+    // Two independent signals, either suffices: the session reports completion,
+    // or the mandate our external_order_ref maps to now exists upstream.
+    const polled = await prava.getPaymentResult(sessionId);
+    const sessionDone = /success|succeed|complete|authoriz|approved|paid|active/i.test(polled.status ?? '');
+
+    const found = await prava.findMandateForOrder(mandate.prava.orderId ?? polled.orderId, mandate.id);
+    if (found) {
+      await this.repo.withLock(mandateId, async (m) => {
+        m.prava.pravaMandateId = found.id;
+        m.prava.pravaMandateStatus = found.status;
+        if (polled.txnRefId) m.prava.txnRefId = polled.txnRefId;
+        appendAudit(m, 'prava', 'mandate.created', `${found.id} (${found.status}) — passkey verified upstream`);
+      });
+      return 'authorized';
+    }
+
+    if (sessionDone) {
+      await this.repo.withLock(mandateId, async (m) => {
+        if (polled.txnRefId) m.prava.txnRefId = polled.txnRefId;
+        appendAudit(m, 'prava', 'session.completed', `payment-result ${polled.status}; awaiting mandate listing`);
+      });
+      return 'authorized';
+    }
+
+    return 'pending';
   }
 
   // =========================================================================

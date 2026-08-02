@@ -119,3 +119,15 @@ Rehearse with `CHECKOUT_ENABLED=false` so policy, approval, and the ledger all e
 | production | `https://api.prava.space` |
 
 `PRAVA_ENV` selects the host, so a sandbox key cannot be pointed at the live API by forgetting to change a URL. Production access for the hackathon is temporary, request-only, and revoked after August 8.
+
+## Where the hosted flow appears in the product
+
+The session's `iframe_url` is not just stored — it is the centrepiece of the approval page:
+
+1. `prepareApproval()` mints the signed grant **first**, then creates the session with `callback_url = /authorize/callback?token=<grant>`, so Prava's redirect after the passkey lands back on the token-guarded page.
+2. `GET /authorize/:token` embeds the iframe with `allow="publickey-credentials-get *; publickey-credentials-create *; payment *"` and an open-in-new-tab escape hatch. Card entry and the Visa passkey happen entirely inside Prava's surface.
+3. The page polls `GET /authorize/:token/status`, backed by `MandateOrchestrator.pravaSetupStatus()`, which combines two upstream signals: the session's `payment-result` and the mandate appearing in `GET /v1/mandates` for our `external_order_ref`. When either confirms, the mandate id is pinned to our record and the Confirm button goes live.
+4. `POST /authorize/:token` re-checks the same status server-side and returns **409** if Prava has not confirmed. The signed token proves the right person holds the link; Prava's mandate proves the ceremony happened. Both are required before the state machine may move to `AUTHORIZED`.
+5. Only then does `chargeMandate` mint the single-use credentials the browser agent spends.
+
+Simulated sessions (`sim_` prefix, no `PRAVA_API_KEY`) skip the iframe, show a labelled badge, and fall back to a local platform-authenticator gate — visibly degraded, exactly as `/ready` reports.
