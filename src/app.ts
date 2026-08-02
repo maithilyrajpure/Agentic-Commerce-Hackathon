@@ -51,6 +51,12 @@ export function createApp(): Express {
   app.use(authorizeRouter);
   app.use(mandateRouter);
 
+  // Shared design tokens. Linked rather than inlined so the approval pages and
+  // the dashboard cannot drift apart visually.
+  app.get('/tokens.css', (_req, res) => {
+    res.type('text/css').setHeader('Cache-Control', 'public, max-age=300');
+    res.sendFile(join(here, 'web', 'tokens.css'));
+  });
   app.get('/dashboard', (_req, res) => res.sendFile(join(here, 'web', 'dashboard.html')));
   app.get('/', (_req, res) => res.redirect(302, '/dashboard'));
 

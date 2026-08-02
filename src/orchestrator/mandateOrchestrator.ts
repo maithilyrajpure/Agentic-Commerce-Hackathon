@@ -1,9 +1,10 @@
-import { env } from '../config/env.js';
+import { capabilities, env } from '../config/env.js';
 import { spendPolicy } from '../config/policy.js';
 import { ConflictError, NotFoundError } from '../domain/errors.js';
 import {
   appendAudit,
   createMandate,
+  recordMessage,
   isExpired,
   isTerminal,
   MandateState,
@@ -54,6 +55,37 @@ export class MandateOrchestrator {
 
   static async create(): Promise<MandateOrchestrator> {
     return new MandateOrchestrator(await getRepository());
+  }
+
+  /**
+   * Send a message and record it on the mandate.
+   *
+   * Every outbound message goes through here rather than calling the Linq
+   * client directly, so the transcript can never drift from what was actually
+   * sent. The lock is taken after the send, not around it, so a slow provider
+   * cannot block a concurrent revoke.
+   *
+   * A failed delivery is still recorded. The message is part of the story
+   * either way, and the audit trail separately notes that it did not arrive —
+   * silently dropping it would leave a mandate that looks like the requester
+   * was told something they never received.
+   */
+  private async notify(
+    mandateId: string,
+    to: string,
+    kind: string,
+    body: string,
+    idempotencyKey?: string,
+  ): Promise<void> {
+    const result = await linqClient().send(to, body, idempotencyKey);
+    try {
+      await this.repo.withLock(mandateId, async (m) => {
+        recordMessage(m, to, kind, body);
+        if (!result.ok) appendAudit(m, 'linq', 'message.undelivered', `${kind}: ${result.detail}`);
+      });
+    } catch (error) {
+      logger.warn({ mandateId, kind, err: (error as Error).message }, 'could not record outbound message');
+    }
   }
 
   // =========================================================================
@@ -161,13 +193,14 @@ export class MandateOrchestrator {
 
     if (decision.verdict === 'reject') {
       log.info({ ruleIds: decision.ruleIds }, 'mandate rejected by policy');
-      await linqClient().send(mandate.requesterPhone, copy.rejectionMessage(mandate, decision), `reject:${mandate.id}`);
+      await this.notify(mandate.id, mandate.requesterPhone, 'rejection', copy.rejectionMessage(mandate, decision), `reject:${mandate.id}`);
       return { kind: 'mandate', mandate };
     }
 
     if (decision.verdict === 'auto_approve') {
       log.info('mandate auto-authorized');
-      await linqClient().send(mandate.requesterPhone, copy.autoApprovedMessage(mandate), `auto:${mandate.id}`);
+      await this.prepareApproval(mandate.id);
+      await this.notify(mandate.id, mandate.requesterPhone, 'auto_approved', copy.autoApprovedMessage(mandate), `auto:${mandate.id}`);
       // Fire and forget: the requester already has their confirmation, and the
       // receipt arrives when the merchant responds.
       void this.provisionAndExecute(mandate.id).catch((err) =>
@@ -183,14 +216,18 @@ export class MandateOrchestrator {
     const fresh = await this.repo.require(mandate.id);
 
     const approver = fresh.approverPhone ?? fresh.requesterPhone;
-    await linqClient().send(
+    await this.notify(
+      fresh.id,
       approver,
+      'approval_request',
       copy.approvalRequestMessage(fresh, decision, approveUrl),
       `approval:${fresh.id}`,
     );
     if (approver !== fresh.requesterPhone) {
-      await linqClient().send(
+      await this.notify(
+        fresh.id,
         fresh.requesterPhone,
+        'pending_approval',
         copy.pendingApprovalMessage(fresh, decision),
         `pending:${fresh.id}`,
       );
@@ -285,18 +322,33 @@ export class MandateOrchestrator {
     return mandate;
   }
 
-  async reject(mandateId: string, actor: string, reason = 'declined by approver'): Promise<Mandate> {
+  /**
+   * A human declined.
+   *
+   * `note` is the approver's own words, captured at the approval screen. It is
+   * surfaced to the requester verbatim, because "declined" with no reason just
+   * produces a follow-up message asking why — and the approver is the only
+   * person who can answer it.
+   */
+  async reject(mandateId: string, actor: string, reason = 'declined by approver', note?: string): Promise<Mandate> {
+    const explanation = note?.trim()
+      ? `${actor} declined: ${note.trim()}`
+      : `${actor} declined this request.`;
+
     const mandate = await this.repo.withLock(mandateId, async (m) => {
       if (isTerminal(m.state)) return m;
-      transition(m, MandateState.REJECTED, actor, reason);
-      m.policyReasons = [`${actor} declined this request.`];
+      transition(m, MandateState.REJECTED, actor, note?.trim() ? `${reason} — ${note.trim()}` : reason);
+      m.policyReasons = [explanation];
       return m;
     });
-    await linqClient().send(
+
+    await this.notify(
+      mandate.id,
       mandate.requesterPhone,
+      'rejection',
       copy.rejectionMessage(mandate, {
         verdict: 'reject',
-        reasons: [`${actor} declined this request.`],
+        reasons: [explanation],
         ruleIds: ['human.declined'],
         requiresHumanApproval: false,
         effectiveCapCents: mandate.amountCents,
@@ -326,7 +378,7 @@ export class MandateOrchestrator {
       return m;
     });
 
-    await linqClient().send(mandate.requesterPhone, copy.revokedMessage(mandate, actor), `revoke:${mandate.id}`);
+    await this.notify(mandate.id, mandate.requesterPhone, 'revoked', copy.revokedMessage(mandate, actor), `revoke:${mandate.id}`);
     mandateLogger(mandateId).warn({ actor, detail: revocation.detail }, 'mandate revoked');
     return mandate;
   }
@@ -391,7 +443,24 @@ export class MandateOrchestrator {
         }
       }
 
-      if (!pravaMandateId) {
+      if (!pravaMandateId && capabilities.fallbackCard) {
+        // Auto-approved mandate (no passkey step): execute checkout using configured test card
+        const credentials = {
+          token: env.PRAVA_TEST_CARD_NUMBER,
+          dynamicCvv: env.PRAVA_TEST_CARD_CVV,
+          expiryMonth: env.PRAVA_TEST_CARD_EXPIRY.split('/')[0] ?? '12',
+          expiryYear: env.PRAVA_TEST_CARD_EXPIRY.split('/')[1] ?? '30',
+        };
+        await this.repo.withLock(mandateId, async (m) => {
+          m.prava.cardLast4 = credentials.token.slice(-4);
+          transition(m, MandateState.EXECUTING, 'browser-agent', `checkout at ${prava.merchant.name}`);
+        });
+        result = await executeCheckout({
+          mandate,
+          credentials,
+          merchant: prava.merchant,
+        });
+      } else if (!pravaMandateId) {
         result = {
           status: 'SKIPPED',
           gatewayMessage:
@@ -527,7 +596,7 @@ export class MandateOrchestrator {
     log.info({ status: result.status, reported: report.ok, ms: result.durationMs }, 'mandate resolved');
     this.printDemoBanner(mandate, result, report.ok);
 
-    await linqClient().send(mandate.requesterPhone, copy.receiptMessage(mandate), `receipt:${mandate.id}`);
+    await this.notify(mandate.id, mandate.requesterPhone, 'receipt', copy.receiptMessage(mandate), `receipt:${mandate.id}`);
     return result;
   }
 
@@ -577,7 +646,7 @@ export class MandateOrchestrator {
         });
         if (!mandate) continue;
         expired += 1;
-        await linqClient().send(mandate.requesterPhone, copy.expiredMessage(mandate), `expired:${mandate.id}`);
+        await this.notify(mandate.id, mandate.requesterPhone, 'expired', copy.expiredMessage(mandate), `expired:${mandate.id}`);
       } catch (error) {
         logger.warn({ mandateId: candidate.id, err: (error as Error).message }, 'expiry sweep skipped a mandate');
       }

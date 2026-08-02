@@ -22,95 +22,83 @@ const escapeHtml = (s: string): string =>
   s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 
 const BASE_CSS = `
-:root{
-  --ink:#16202B; --ink-2:#40525F; --ink-3:#7B8B98;
-  --paper:#E4EAEF; --card:#FFFFFF; --rule:#C6D2DB;
-  --limit:#B4530A; --limit-soft:#FBEEE2;
-  --ok:#0E7C66; --ok-soft:#E3F1ED;
-  --stop:#A3283C; --stop-soft:#F8E6E9;
-  --shadow:0 1px 2px rgba(22,32,43,.06),0 8px 24px -12px rgba(22,32,43,.28);
-}
+/* Tokens live in /tokens.css. Only page-specific rules belong here. */
 *{box-sizing:border-box;margin:0;padding:0}
 html{-webkit-text-size-adjust:100%}
 body{
-  font-family:'IBM Plex Sans',system-ui,-apple-system,sans-serif;
+  font-family:var(--font-body);
   background:var(--paper); color:var(--ink);
   min-height:100vh; display:flex; align-items:center; justify-content:center;
   padding:24px; line-height:1.5;
 }
 .sheet{
   background:var(--card); width:100%; max-width:520px;
-  border:1px solid var(--rule); border-radius:4px; box-shadow:var(--shadow);
+  border:1px solid var(--rule); border-radius:var(--radius); box-shadow:var(--shadow);
   overflow:hidden;
 }
 .masthead{
   padding:18px 24px; border-bottom:1px solid var(--rule);
   display:flex; align-items:baseline; justify-content:space-between; gap:12px;
 }
-.org{
-  font-family:'Archivo',sans-serif; font-weight:700; font-size:13px;
-  letter-spacing:.14em; text-transform:uppercase;
-}
-.doctype{
-  font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11px;
-  color:var(--ink-3); letter-spacing:.06em;
-}
+.org{font-family:var(--font-display); font-weight:700; font-size:13px; letter-spacing:.14em; text-transform:uppercase}
+.doctype{font-family:var(--font-mono); font-size:11px; color:var(--ink-3); letter-spacing:.06em}
 .body{padding:28px 24px}
-h1{
-  font-family:'Archivo',sans-serif; font-weight:800; font-size:27px;
-  letter-spacing:-.02em; line-height:1.15; margin-bottom:10px;
-}
+h1{font-family:var(--font-display); font-weight:800; font-size:27px; letter-spacing:-.02em; line-height:1.15; margin-bottom:10px}
 .lede{color:var(--ink-2); font-size:15px; margin-bottom:22px}
 .lede strong{color:var(--ink); font-weight:600}
 
-/* ---- the guardrail band: this page's one loud idea ---- */
-.band{
+/* Vertical presentation of the shared guardrail band, for the approval sheet. */
+.band.sheet-band{
+  flex-direction:column; align-items:stretch; gap:0;
   border:1px solid var(--rule); border-left:3px solid var(--limit);
   background:linear-gradient(180deg,#FCFDFE,#F5F8FA);
-  border-radius:3px; padding:16px 18px; margin-bottom:22px;
+  border-radius:var(--radius); padding:16px 18px; margin-bottom:22px;
 }
-.band-title{
-  font-family:'Archivo',sans-serif; font-size:10px; font-weight:700;
-  letter-spacing:.16em; text-transform:uppercase; color:var(--limit); margin-bottom:12px;
-}
-.band-row{
-  display:flex; justify-content:space-between; align-items:baseline;
-  gap:16px; padding:6px 0; border-bottom:1px dotted var(--rule);
-}
+.band-title{font-family:var(--font-display); font-size:10px; font-weight:700; letter-spacing:.16em; text-transform:uppercase; color:var(--limit); margin-bottom:12px}
+.band-row{display:flex; justify-content:space-between; align-items:baseline; gap:16px; padding:6px 0; border-bottom:1px dotted var(--rule); width:100%}
 .band-row:last-child{border-bottom:0}
 .band-k{font-size:12px; color:var(--ink-3); letter-spacing:.02em}
-.band-v{
-  font-family:'JetBrains Mono',ui-monospace,monospace; font-size:13px;
-  font-variant-numeric:tabular-nums; text-align:right; font-weight:500;
-}
-.pips{display:inline-flex; gap:4px; vertical-align:middle}
-.pip{width:7px;height:7px;border-radius:50%;background:var(--limit)}
-.pip.spent{background:var(--rule)}
+.band-v{font-family:var(--font-mono); font-size:13px; font-variant-numeric:tabular-nums; text-align:right; font-weight:500}
+.band-meter{padding:10px 0 2px}
 
 .reasons{list-style:none; margin-bottom:22px}
-.reasons li{
-  font-size:14px; color:var(--ink-2); padding:7px 0 7px 16px;
-  border-left:2px solid var(--rule); margin-bottom:2px;
-}
-.reasons li::before{content:''}
+.reasons li{font-size:14px; color:var(--ink-2); padding:7px 0 7px 16px; border-left:2px solid var(--rule); margin-bottom:2px}
 
 .actions{display:flex; gap:10px; flex-wrap:wrap}
 button{
-  font-family:'IBM Plex Sans',sans-serif; font-size:15px; font-weight:600;
-  padding:13px 22px; border-radius:3px; border:1px solid transparent;
+  font-family:var(--font-body); font-size:15px; font-weight:600;
+  padding:13px 22px; border-radius:var(--radius); border:1px solid transparent;
   cursor:pointer; transition:transform .08s ease, box-shadow .15s ease, background .15s ease;
 }
 button:focus-visible{outline:2px solid var(--ink); outline-offset:2px}
 button:active{transform:translateY(1px)}
 .primary{background:var(--ok); color:#fff; flex:1; min-width:200px}
-.primary:hover{background:#0B6753}
+.primary:hover{background:var(--ok-hover)}
 .primary:disabled{background:var(--ink-3); cursor:progress}
 .secondary{background:transparent; color:var(--stop); border-color:var(--rule)}
 .secondary:hover{background:var(--stop-soft); border-color:var(--stop)}
+.secondary.armed{background:var(--stop); color:#fff; border-color:var(--stop)}
+
+/* Decline reason. Hidden until Decline is pressed, so the default path stays
+   one tap and the reason never reads as a required field. */
+.why{
+  margin-bottom:16px; border:1px solid var(--stop); border-left-width:3px;
+  border-radius:var(--radius); background:var(--stop-soft); padding:14px 16px;
+  animation:unfold .18s ease-out;
+}
+.why[hidden]{display:none}
+@keyframes unfold{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.why label{display:block; font-family:var(--font-display); font-size:10px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--stop); margin-bottom:8px}
+.why input{
+  width:100%; font-family:var(--font-body); font-size:14px; padding:10px 12px;
+  border:1px solid var(--rule); border-radius:var(--radius); background:var(--card); color:var(--ink);
+}
+.why input:focus{outline:2px solid var(--stop); outline-offset:-1px}
+.why p{font-size:12px; color:var(--ink-2); margin-top:8px}
 
 .stamp{
   display:inline-flex; align-items:center; gap:7px;
-  font-family:'Archivo',sans-serif; font-size:11px; font-weight:700;
+  font-family:var(--font-display); font-size:11px; font-weight:700;
   letter-spacing:.12em; text-transform:uppercase;
   padding:6px 12px; border-radius:2px; margin-bottom:18px;
 }
@@ -123,7 +111,7 @@ button:active{transform:translateY(1px)}
 
 .foot{
   padding:14px 24px; border-top:1px solid var(--rule); background:#F7FAFC;
-  font-family:'JetBrains Mono',ui-monospace,monospace; font-size:11px; color:var(--ink-3);
+  font-family:var(--font-mono); font-size:11px; color:var(--ink-3);
   display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap;
 }
 a{color:var(--ok)}
@@ -138,7 +126,7 @@ function shell(title: string, inner: string, extraScript = ''): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<title>${escapeHtml(title)}</title>${FONTS}<style>${BASE_CSS}</style></head>
+<title>${escapeHtml(title)}</title>${FONTS}<link rel="stylesheet" href="/tokens.css"><style>${BASE_CSS}</style></head>
 <body><main class="sheet">${inner}</main>${extraScript}</body></html>`;
 }
 
@@ -153,10 +141,20 @@ function guardrailBand(mandate: Mandate): string {
   ).join('');
   const minutes = Math.max(0, Math.round((new Date(mandate.scope.expiresAt).getTime() - Date.now()) / 60_000));
 
-  return `<section class="band">
+  // How much of the ceiling this single charge would consume. Drawn against the
+  // full cap rather than rescaled, so the headroom is visible.
+  const pct = mandate.scope.perTransactionCapCents
+    ? Math.min(100, Math.round((mandate.amountCents / mandate.scope.perTransactionCapCents) * 100))
+    : 0;
+
+  return `<section class="band sheet-band">
   <div class="band-title">What this card can do</div>
   <div class="band-row"><span class="band-k">Merchant</span><span class="band-v">${escapeHtml(mandate.scope.merchant)} only</span></div>
   <div class="band-row"><span class="band-k">Ceiling</span><span class="band-v">${formatUsd(mandate.scope.perTransactionCapCents)}</span></div>
+  <div class="band-row band-meter" style="display:block">
+    <div class="meter-row"><span class="meter-k">This charge against the cap</span><span class="meter-v">${formatUsd(mandate.amountCents)} of ${formatUsd(mandate.scope.perTransactionCapCents)}</span></div>
+    <div class="meter"><i style="width:${pct}%"></i></div>
+  </div>
   <div class="band-row"><span class="band-k">Uses left</span><span class="band-v"><span class="pips">${pips}</span> &nbsp;${remaining} of ${mandate.scope.maxUses}</span></div>
   <div class="band-row"><span class="band-k">Expires</span><span class="band-v">${minutes} min</span></div>
   ${mandate.scope.recurrence !== 'one_time' ? `<div class="band-row"><span class="band-k">Billing</span><span class="band-v">${escapeHtml(mandate.scope.recurrence)}</span></div>` : ''}
@@ -191,6 +189,12 @@ export function approvalPage(mandate: Mandate, token: string): string {
   <p class="lede"><strong>${escapeHtml(who)}</strong> asked for ${escapeHtml(mandate.purpose)}${mandate.seats ? ` for ${mandate.seats} seats` : ''}.</p>
   ${guardrailBand(mandate)}
   <ul class="reasons">${reasons}</ul>
+  <div class="why" id="why" hidden>
+    <label for="reason">Why are you declining?</label>
+    <input id="reason" type="text" maxlength="200" autocomplete="off"
+           placeholder="e.g. we already have seats on the team plan">
+    <p>Optional, but the requester sees this verbatim. Press Decline again to confirm.</p>
+  </div>
   <div class="actions">
     <button class="primary" id="approve">Approve with passkey</button>
     <button class="secondary" id="decline">Decline</button>
@@ -202,14 +206,17 @@ ${footer(mandate)}`,
   var token=${JSON.stringify(token)};
   var approve=document.getElementById('approve');
   var decline=document.getElementById('decline');
+  var why=document.getElementById('why');
+  var reason=document.getElementById('reason');
+  var armed=false;
 
   async function submit(action, button, workingLabel){
     approve.disabled=true; decline.disabled=true;
     button.textContent=workingLabel;
     try{
-      // WebAuthn where the device supports it. The signed token is the
-      // server-side authority either way; the platform check is an additional
-      // local factor, never the only one.
+      // WebAuthn where the device has an enrolled platform authenticator. The
+      // signed token is the server-side authority either way; this is an
+      // additional local factor, never the only one.
       if(action==='approve' && window.PublicKeyCredential && navigator.credentials){
         try{
           var available=await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
@@ -228,7 +235,7 @@ ${footer(mandate)}`,
       var res=await fetch('/authorize/'+encodeURIComponent(token),{
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({action:action})
+        body:JSON.stringify({action:action, reason:(reason&&reason.value||'').trim()})
       });
       var html=await res.text();
       document.open(); document.write(html); document.close();
@@ -239,7 +246,27 @@ ${footer(mandate)}`,
   }
 
   approve.addEventListener('click',function(){submit('approve',approve,'Verifying…')});
-  decline.addEventListener('click',function(){submit('decline',decline,'Declining…')});
+
+  // Declining is two taps: the first reveals the reason field, the second
+  // commits. Refusing a colleague's purchase deserves the same beat of
+  // deliberation as approving one, and it gives them somewhere to say why.
+  decline.addEventListener('click',function(){
+    if(!armed){
+      armed=true;
+      why.hidden=false;
+      decline.classList.add('armed');
+      decline.textContent='Confirm decline';
+      if(reason) reason.focus();
+      return;
+    }
+    submit('decline',decline,'Declining…');
+  });
+
+  if(reason){
+    reason.addEventListener('keydown',function(ev){
+      if(ev.key==='Enter'){ ev.preventDefault(); submit('decline',decline,'Declining…'); }
+    });
+  }
 })();
 </script>`,
   );
@@ -261,14 +288,15 @@ ${footer(mandate)}`,
   );
 }
 
-export function declinedPage(mandate: Mandate): string {
+export function declinedPage(mandate: Mandate, note?: string): string {
   return shell(
     'Declined',
     `${masthead('AUTHORIZATION DECLINED')}
 <div class="body">
   <span class="stamp stop"><span class="dot"></span>Declined</span>
   <h1>Nothing was released</h1>
-  <p class="lede">No card was issued for ${escapeHtml(mandate.scope.merchant)} and no money moved. ${escapeHtml(mandate.requesterName ?? mandate.requesterPhone)} has been told.</p>
+  <p class="lede">No card was issued for ${escapeHtml(mandate.scope.merchant)} and no money moved. ${escapeHtml(mandate.requesterName ?? mandate.requesterPhone)} has been told${note?.trim() ? ', including your reason' : ''}.</p>
+  ${note?.trim() ? `<ul class="reasons"><li>${escapeHtml(note.trim())}</li></ul>` : ''}
 </div>
 ${footer(mandate)}`,
   );

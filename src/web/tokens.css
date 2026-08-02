@@ -1,0 +1,168 @@
+/*
+ * Design tokens — the single source of truth for every surface in this product.
+ *
+ * The colour convention is semantic, not decorative, and it is load-bearing:
+ *
+ *   amber   (--limit)  a constraint. Caps, ceilings, locks, expiries.
+ *   teal    (--ok)     authority released, or money that actually moved.
+ *   carmine (--stop)   authority withdrawn or refused.
+ *   blue    (--wait)   waiting on a human.
+ *
+ * If something on screen is amber, it is a limit. That consistency is what lets
+ * an approver read the guardrail band in about two seconds, on a phone, without
+ * a legend. Do not introduce a new accent colour without a semantic reason.
+ *
+ * Shared by src/web/pages.ts (approval flow) and dashboard.html (ledger), so the
+ * mandate looks like the same object at every step of its life.
+ */
+
+:root {
+  /* Ink — cool, institutional, never pure black. */
+  --ink: #16202B;
+  --ink-2: #40525F;
+  --ink-3: #7B8B98;
+  --ink-4: #A9B7C2;
+
+  /* Surfaces */
+  --paper: #E4EAEF;
+  --card: #FFFFFF;
+  --surface-2: #F6F8FA;
+  --rule: #C6D2DB;
+  --rule-soft: #E2E9EE;
+
+  /* Semantic accents */
+  --limit: #B4530A;
+  --limit-soft: #FBEEE2;
+  --ok: #0E7C66;
+  --ok-hover: #0B6753;
+  --ok-soft: #E3F1ED;
+  --stop: #A3283C;
+  --stop-soft: #F8E6E9;
+  --wait: #1F5E8C;
+  --wait-soft: #E4EFF7;
+
+  /* Type */
+  --font-display: 'Archivo', system-ui, sans-serif;
+  --font-body: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace;
+
+  --shadow: 0 1px 2px rgba(22, 32, 43, .06), 0 8px 24px -12px rgba(22, 32, 43, .28);
+  --shadow-lift: 0 2px 6px rgba(22, 32, 43, .09), 0 24px 48px -20px rgba(22, 32, 43, .34);
+  --radius: 3px;
+}
+
+/* --- Primitives shared across surfaces ---------------------------------- */
+
+.mm-eyebrow {
+  font-family: var(--font-display);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+
+.mm-num {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.01em;
+}
+
+/*
+ * The guardrail band. The one loud idea in this product's interface: a strip
+ * that states exactly what the released credential can do. It appears on the
+ * approval screen, in the ledger, and in the detail view — identical each time,
+ * so the approver sees the same object before and after they consent.
+ */
+.band {
+  border-left: 3px solid var(--limit);
+  background: linear-gradient(90deg, #FCFAF7, #FAFCFD 60%);
+  padding: 9px 13px;
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.band span {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.band span b { color: var(--ink); font-weight: 500; }
+
+.band.dead {
+  border-left-color: var(--ink-4);
+  background: var(--surface-2);
+  opacity: .65;
+}
+
+.band.dead span b { color: var(--ink-3); }
+
+.pips { display: inline-flex; gap: 3px; vertical-align: -1px; }
+.pip { width: 6px; height: 6px; border-radius: 50%; background: var(--limit); }
+.pip.spent { background: var(--rule); }
+
+/*
+ * Spend-cap meter. A cap you cannot see the edge of is not a cap you can
+ * reason about, so the bar is always drawn against the full ceiling rather
+ * than rescaled to the current value.
+ */
+.meter {
+  --meter-fill: var(--limit);
+  height: 6px;
+  background: var(--rule-soft);
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+}
+
+.meter > i {
+  display: block;
+  height: 100%;
+  background: var(--meter-fill);
+  border-radius: 999px;
+  transition: width .35s cubic-bezier(.2, .7, .3, 1);
+}
+
+.meter.settled { --meter-fill: var(--ok); }
+.meter.over { --meter-fill: var(--stop); }
+.meter.dead { --meter-fill: var(--ink-4); }
+
+.meter-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 5px;
+}
+
+.meter-k {
+  font-size: 11px;
+  color: var(--ink-3);
+  letter-spacing: .02em;
+}
+
+.meter-v {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+/* Simulation badge — never let a fallback read as a success. */
+.sim {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--limit);
+  border: 1px solid var(--limit);
+  padding: 2px 6px;
+  border-radius: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}

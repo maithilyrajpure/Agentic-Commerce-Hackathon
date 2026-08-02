@@ -66,9 +66,18 @@ authorizeRouter.post(
 
     try {
       if (action === 'decline') {
-        const mandate = await orch.reject(verification.grant.mandateId, actor, 'declined at approval screen');
-        log.info('mandate declined by approver');
-        res.type('html').send(declinedPage(mandate));
+        // The approver's own words, capped and passed through verbatim to the
+        // requester. Sanitized at render, not here, so the audit trail keeps
+        // exactly what was typed.
+        const note = typeof req.body?.reason === 'string' ? req.body.reason.slice(0, 200) : undefined;
+        const mandate = await orch.reject(
+          verification.grant.mandateId,
+          actor,
+          'declined at approval screen',
+          note,
+        );
+        log.info({ hasReason: Boolean(note?.trim()) }, 'mandate declined by approver');
+        res.type('html').send(declinedPage(mandate, note));
         return;
       }
 

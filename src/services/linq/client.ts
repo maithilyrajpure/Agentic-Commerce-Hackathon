@@ -42,16 +42,35 @@ export class LinqClient {
     }
 
     try {
-      const response = await this.http.post<Record<string, unknown>>(
-        '/v1/messages',
-        {
-          to: toPhone,
-          ...(env.LINQ_PHONE_NUMBER ? { from: env.LINQ_PHONE_NUMBER } : {}),
-          text: body,
-        },
-        { idempotencyKey },
-      );
-      const messageId = typeof response?.id === 'string' ? response.id : undefined;
+      const fromPhone = env.LINQ_PHONE_NUMBER || '+15124371883';
+      const isPartnerV3 = env.LINQ_API_BASE.includes('/api/partner/v3');
+
+      let response: Record<string, unknown>;
+      if (isPartnerV3) {
+        response = await this.http.post<Record<string, unknown>>(
+          '/chats',
+          {
+            from: fromPhone,
+            to: [toPhone],
+            message: {
+              parts: [{ type: 'text', value: body }],
+            },
+          },
+          { idempotencyKey },
+        );
+      } else {
+        response = await this.http.post<Record<string, unknown>>(
+          '/v1/messages',
+          {
+            to: toPhone,
+            ...(env.LINQ_PHONE_NUMBER ? { from: env.LINQ_PHONE_NUMBER } : {}),
+            text: body,
+          },
+          { idempotencyKey },
+        );
+      }
+
+      const messageId = typeof response?.id === 'string' ? response.id : (typeof response?.chat_id === 'string' ? response.chat_id : undefined);
       logger.info({ to: toPhone, messageId }, 'imessage sent');
       return { ok: true, detail: 'sent', messageId };
     } catch (error) {
@@ -92,9 +111,31 @@ export function parseInboundMessage(payload: unknown): InboundMessage | null {
   const eventType: string = root.type ?? root.event ?? root.event_type ?? '';
   const data = (root.data ?? root.message ?? root.payload ?? root) as Record<string, any>;
 
+  // Extract text from parts array (Linq v3 format) or text string
+  let text = '';
+  if (Array.isArray(data.parts)) {
+    const textPart = data.parts.find((p: any) => p.type === 'text' || p.value || p.text);
+    text = textPart?.value ?? textPart?.text ?? '';
+  } else if (data.message && typeof data.message === 'object' && Array.isArray(data.message.parts)) {
+    const textPart = data.message.parts.find((p: any) => p.type === 'text' || p.value || p.text);
+    text = textPart?.value ?? textPart?.text ?? '';
+  }
+  if (!text || typeof text !== 'string') {
+    text = data.text ?? data.body ?? data.message ?? data.content ?? (typeof root.text === 'string' ? root.text : '');
+  }
+
   const fromPhone: string =
-    data.from ?? data.from_number ?? data.fromPhone ?? data.sender ?? data.phone ?? data.author ?? '';
-  const text: string = data.text ?? data.body ?? data.message ?? data.content ?? '';
+    data.from ??
+    data.from_number ??
+    data.fromPhone ??
+    data.sender ??
+    data.phone ??
+    data.author ??
+    data.handle ??
+    data.sender_handle ??
+    root.from ??
+    root.sender ??
+    '';
   const messageId: string | undefined = data.id ?? data.message_id ?? data.messageId ?? root.id;
 
   if (!fromPhone || typeof text !== 'string' || !text.trim()) return null;

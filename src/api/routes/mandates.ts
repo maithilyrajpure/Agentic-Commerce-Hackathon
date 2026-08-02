@@ -74,6 +74,51 @@ mandateRouter.post(
   }),
 );
 
+/**
+ * Demo route: attempt a second charge against a mandate.
+ *
+ * This is the rogue-recurring-charge scenario the product exists to stop, and
+ * it is worth being able to run on camera. It deliberately calls the SAME
+ * provisionAndExecute() the real flow uses rather than a mock, so what it
+ * proves is the actual guardrail: the state machine refuses to re-enter
+ * PROVISIONED from a terminal state, and Prava has already consumed or
+ * cancelled the mandate upstream.
+ *
+ * A null return means the attempt was blocked before any credential existed.
+ */
+mandateRouter.post(
+  '/api/mandates/:id/simulate-second-charge',
+  apiLimiter,
+  asyncRoute(async (req, res) => {
+    const orch = await orchestrator();
+    const before = await orch.get(req.params.id ?? '');
+
+    const result = await orch.provisionAndExecute(before.id);
+    const after = await orch.get(before.id);
+
+    if (result === null) {
+      res.json({
+        blocked: true,
+        reason:
+          `Refused. The mandate is ${before.state.toLowerCase().replace(/_/g, ' ')}, and a charge ` +
+          'can only start from AUTHORIZED. No credential was requested and nothing reached the merchant.',
+        stateBefore: before.state,
+        stateAfter: after.state,
+        mandate: toPublicMandate(after),
+      });
+      return;
+    }
+
+    res.json({
+      blocked: false,
+      reason: `A second charge ran and resolved ${result.status}.`,
+      stateBefore: before.state,
+      stateAfter: after.state,
+      mandate: toPublicMandate(after),
+    });
+  }),
+);
+
 mandateRouter.get(
   '/api/summary',
   apiLimiter,

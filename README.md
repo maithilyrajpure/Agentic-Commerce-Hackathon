@@ -113,7 +113,7 @@ Merchants live in `src/config/merchants.ts`, seeded from the hackathon list (Lit
 
 ```bash
 npm run typecheck   # strict TS, noUncheckedIndexedAccess
-npm test            # 58 tests
+npm test            # 67 tests
 ```
 
 The tests worth reading are in `tests/flow.test.ts`, which asserts the properties above rather than the implementation:
@@ -123,6 +123,7 @@ The tests worth reading are in `tests/flow.test.ts`, which asserts the propertie
 - an expired mandate cannot be authorized
 - a settled mandate cannot be revoked
 - only the last four digits are ever persisted
+- a revoked or settled mandate cannot be charged a second time
 
 ## Layout
 

@@ -319,6 +319,79 @@ describe('transaction evidence', () => {
   });
 });
 
+describe('message transcript', () => {
+  it('keeps the exact text of every message it sent', async () => {
+    const { mandate } = await orch.handleInboundMessage(REQUESTER, 'Figma $45/mo for 2 designers');
+    const final = await orch.get(mandate!.id);
+
+    expect(final.messages.length).toBeGreaterThan(0);
+    const approval = final.messages.find((m) => m.kind === 'approval_request');
+    expect(approval).toBeDefined();
+    expect(approval?.body).toBe(linq.sent.find((s) => s.text.includes('Approval needed'))?.text);
+    expect(approval?.direction).toBe('outbound');
+  });
+
+  it('records the receipt after the merchant responds', async () => {
+    const { mandate } = await orch.handleInboundMessage(REQUESTER, 'Top up OpenAI credits by $20');
+    await settle();
+    const final = await orch.get(mandate!.id);
+    expect(final.messages.map((m) => m.kind)).toContain('receipt');
+  });
+
+  it('never lets a network token into the transcript', async () => {
+    const { mandate } = await orch.handleInboundMessage(REQUESTER, 'Top up OpenAI credits by $20');
+    await settle();
+    const final = await orch.get(mandate!.id);
+    expect(JSON.stringify(final.messages)).not.toContain('4111111111111111');
+  });
+});
+
+describe('decline with a reason', () => {
+  it('passes the approver words through to the requester verbatim', async () => {
+    const { mandate } = await orch.handleInboundMessage(REQUESTER, 'Figma $45/mo for 2 designers');
+    await orch.reject(mandate!.id, 'Finance Approver', 'declined at approval screen', 'we already have seats');
+
+    const final = await orch.get(mandate!.id);
+    expect(final.state).toBe(MandateState.REJECTED);
+    expect(final.policyReasons.join(' ')).toContain('we already have seats');
+    expect(final.messages.at(-1)?.body).toContain('we already have seats');
+  });
+
+  it('still works when no reason is given', async () => {
+    const { mandate } = await orch.handleInboundMessage(REQUESTER, 'Figma $45/mo for 2 designers');
+    await orch.reject(mandate!.id, 'Finance Approver');
+    expect((await orch.get(mandate!.id)).policyReasons.join(' ')).toMatch(/declined this request/i);
+  });
+});
+
+describe('a revoked or spent mandate cannot be charged again', () => {
+  it('blocks a second charge after revocation', async () => {
+    const { mandate } = await orch.handleInboundMessage(REQUESTER, 'Figma $45/mo for 2 designers');
+    await orch.revoke(mandate!.id, 'Finance Approver');
+    const chargesBefore = prava.charges;
+
+    // Exactly what the dashboard's "simulate rogue re-charge" button calls.
+    const result = await orch.provisionAndExecute(mandate!.id);
+
+    expect(result).toBeNull();
+    expect(prava.charges).toBe(chargesBefore);
+    expect(checkoutCalls).toHaveLength(0);
+    expect((await orch.get(mandate!.id)).state).toBe(MandateState.REVOKED);
+  });
+
+  it('blocks a second charge after the first one settled', async () => {
+    const { mandate } = await orch.handleInboundMessage(REQUESTER, 'Top up OpenAI credits by $20');
+    await settle();
+    expect(checkoutCalls).toHaveLength(1);
+
+    const result = await orch.provisionAndExecute(mandate!.id);
+
+    expect(result).toBeNull();
+    expect(checkoutCalls).toHaveLength(1);
+    expect(prava.charges).toBe(1);
+  });
+});
+
 describe('card handling', () => {
   it('persists only the last four digits, never the number', async () => {
     const { mandate } = await orch.handleInboundMessage(REQUESTER, 'Top up OpenAI credits by $20');

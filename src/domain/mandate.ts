@@ -117,6 +117,27 @@ export interface MandateScope {
   category: ExpenseCategory;
 }
 
+/**
+ * A message the agent actually sent to a person.
+ *
+ * The audit trail records that a notification happened; this records what it
+ * said. Both matter, for different reasons: the audit answers "did the system
+ * do the right thing", the transcript answers "did the human have what they
+ * needed to decide". An approver disputing a purchase will ask the second
+ * question, so the exact text has to survive.
+ *
+ * Safe to expose publicly: LinqClient.send runs scrubPan over every body before
+ * dispatch, so nothing here can carry card data.
+ */
+export interface MessageRecord {
+  at: string;
+  direction: 'outbound';
+  to: string;
+  /** Short template name: approval_request, receipt, rejection, and so on. */
+  kind: string;
+  body: string;
+}
+
 export interface AuditEntry {
   at: string;
   actor: string;
@@ -209,6 +230,8 @@ export interface Mandate {
   authorizedBy?: string;
 
   audit: AuditEntry[];
+  /** Everything the agent said to a human about this mandate. */
+  messages: MessageRecord[];
   /** Guards against duplicate webhook deliveries kicking off two checkouts. */
   executionLockedAt?: string;
 }
@@ -244,6 +267,7 @@ export function createMandate(input: CreateMandateInput): Mandate {
     createdAt: now,
     updatedAt: now,
     audit: [{ at: now, actor: 'system', event: 'mandate.created', detail: input.purpose }],
+    messages: [],
   };
 }
 
@@ -282,6 +306,20 @@ export function transition(
   return mandate;
 }
 
+/**
+ * Record an outbound message on the mandate.
+ *
+ * Same push-and-touch pattern as appendAudit. Deliberately does not fail if the
+ * send itself failed — a message we tried to send is still part of the story,
+ * and the audit trail separately records delivery success.
+ */
+export function recordMessage(mandate: Mandate, to: string, kind: string, body: string): Mandate {
+  const now = new Date().toISOString();
+  mandate.messages.push({ at: now, direction: 'outbound', to, kind, body });
+  mandate.updatedAt = now;
+  return mandate;
+}
+
 export function appendAudit(mandate: Mandate, actor: string, event: string, detail?: string): Mandate {
   const now = new Date().toISOString();
   mandate.audit.push({ at: now, actor, event, detail });
@@ -298,11 +336,19 @@ export function remainingCapCents(mandate: Mandate): Cents {
   return Math.max(0, mandate.scope.totalCapCents - spent);
 }
 
-/** The shape the dashboard and API expose. Never leaks card data. */
+/**
+ * The shape the dashboard and API expose.
+ *
+ * `messages` is included on purpose, unlike prava.authorizationUrl: the
+ * transcript is the point of the detail view, and it is already scrubbed.
+ * The authorization URL is a bearer capability and stays server-side.
+ */
 export function toPublicMandate(mandate: Mandate) {
   const { prava, ...rest } = mandate;
   return {
     ...rest,
+    // Records written before this field existed load without it.
+    messages: mandate.messages ?? [],
     prava: {
       sessionId: prava.sessionId,
       orderId: prava.orderId,

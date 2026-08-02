@@ -83,11 +83,27 @@ Credentials arrive as an argument to `executeCheckout` and leave with the stack 
 
 `provisionAndExecute` is three phases: claim under lock → charge and check out with no lock → record under lock. Holding the lock through the slow phase would make the dashboard's Revoke button block for three minutes, which is precisely when it matters most.
 
-### 3.7 Degrade loudly, never silently
+### 3.7 One visual language, shared across surfaces
+
+Tokens live in `src/web/tokens.css` and are linked by both `pages.ts` and `dashboard.html`. Do not re-declare a `:root` block in either.
+
+The colour convention is semantic, not decorative: **amber is a constraint** (caps, locks, expiries), teal is authority released, carmine is authority withdrawn, blue is waiting on a human. If something is amber it is a limit. That consistency is what lets an approver read the guardrail band in two seconds on a phone without a legend.
+
+The `.band` and `.meter` components are shared on purpose: the mandate must look like the same object on the approval screen, in the ledger, and in the detail drawer.
+
+The dashboard has three distinct surfaces answering three different questions. Keep them distinct:
+
+| Surface | Question |
+|---|---|
+| `.parse-card` | What did the agent *understand*? Appears once on send, before any decision. |
+| `.slip` | What *state* is the mandate in? The ledger. |
+| `.drawer` | What *authority* does it carry? The full credential, audit trail and transcript. |
+
+### 3.8 Degrade loudly, never silently
 
 If an integration is unconfigured the code simulates *and says so*: `sim_` id prefixes, `degraded: true`, a badge on the dashboard, and `/ready` listing what is missing. Do not "helpfully" make a fallback look like a success.
 
-### 3.8 Never commit credentials
+### 3.9 Never commit credentials
 
 The Prava sandbox card is team-scoped and capped at 30 transactions a day. It belongs in `.env` only. `.env.example` gets placeholders. CI (`.github/workflows/ci.yml`) fails the build if a PAN or a tracked `.env` appears.
 
@@ -132,7 +148,7 @@ Node 20.11 or newer. Check with `node -v`.
 node setup-mandate-manager.mjs   # only if the tree is not already in place
 npm install
 npm run typecheck                # must be clean
-npm test                         # must show 60 passing
+npm test                         # must show 67 passing
 ```
 
 If either verification step fails, **stop and fix it before configuring anything**. A broken build with half-configured credentials is much harder to diagnose.
@@ -257,11 +273,13 @@ Work top to bottom. Each step has a verification you can actually run.
 - [ ] `node -v` ≥ 20.11
 - [ ] `npm install` completes
 - [ ] `npm run typecheck` clean
-- [ ] `npm test` → 60 passing
+- [ ] `npm test` → 67 passing
 - [ ] `.env` created, `CALLBACK_SIGNING_SECRET` set
 - [ ] `npm run dev` boots; `/ready` responds
 - [ ] `/dashboard` loads and a compose-box request produces a mandate
 - [ ] `npm run demo` runs all five scenarios
+- [ ] Click a ledger slip: the detail drawer opens with the credential, audit trail and conversation
+- [ ] On a `REVOKED` or `COMPLETED` mandate, "Simulate rogue re-charge" returns **Blocked**
 - [ ] Add `OPENAI_API_KEY`; confirm `/ready` no longer lists `llm` as degraded
 - [ ] Add `PRAVA_API_KEY`; confirm a session id no longer starts with `sim_`
 - [ ] Add Browserbase keys; run one live checkout; confirm screenshots appear in `.data/evidence/`
@@ -320,7 +338,7 @@ src/
     checkout/    Stagehand browser agent · evidence capture
   orchestrator/  the only module that may advance a mandate
   api/           routes · middleware
-  web/           approval pages · dashboard
+  web/           tokens.css (shared) · approval pages · dashboard + detail drawer
 legacy/          pre-event scaffold, kept for disclosure, not compiled
 ```
 

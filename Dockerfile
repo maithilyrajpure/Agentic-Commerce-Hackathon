@@ -18,8 +18,9 @@ COPY package*.json ./
 RUN npm ci --omit=dev && npm cache clean --force
 
 COPY --from=build /app/dist ./dist
-# The dashboard is a static file the build step does not emit.
+# Static web assets the TypeScript build does not emit.
 COPY src/web/dashboard.html ./dist/src/web/dashboard.html
+COPY src/web/tokens.css ./dist/src/web/tokens.css
 
 # Mandate state is durable; give it a writable mount point.
 RUN mkdir -p /app/.data && chown -R node:node /app

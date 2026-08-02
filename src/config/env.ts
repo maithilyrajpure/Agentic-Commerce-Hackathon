@@ -68,7 +68,7 @@ const EnvSchema = z.object({
   PRAVA_TEST_CARD_ID: z.string().optional().default(''),
 
   // ---- Linq (iMessage) ---------------------------------------------------
-  LINQ_API_BASE: z.string().url().default('https://api.linqapp.com'),
+  LINQ_API_BASE: z.string().url().default('https://api.linqapp.com/api/partner/v3'),
   LINQ_API_TOKEN: z.string().optional().default(''),
   LINQ_PHONE_NUMBER: z.string().optional().default(''),
   LINQ_WEBHOOK_SECRET: z.string().optional().default(''),

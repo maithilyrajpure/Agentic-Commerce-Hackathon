@@ -21,6 +21,10 @@ export const linqRouter = Router();
  *   Answer 200 even for payloads we ignore. A 4xx on an unrecognized event
  *   type makes the provider redeliver it forever.
  */
+linqRouter.get('/webhooks/linq', (_req, res) => {
+  res.status(200).json({ status: 'ok', service: 'linq-webhook' });
+});
+
 linqRouter.post('/webhooks/linq', webhookLimiter, (req, res) => {
   const log = logger.child({ correlationId: req.correlationId, route: 'linq-webhook' });
 
@@ -33,17 +37,18 @@ linqRouter.post('/webhooks/linq', webhookLimiter, (req, res) => {
     }
   }
 
+  log.info({ body: scrubDeep(req.body) }, 'linq webhook received');
   const message = parseInboundMessage(req.body);
 
   // Acknowledge first, work second.
   res.status(200).json({ status: 'accepted', correlationId: req.correlationId });
 
   if (!message) {
-    log.debug({ body: scrubDeep(req.body) }, 'webhook payload had no usable message');
+    log.info({ body: scrubDeep(req.body) }, 'webhook payload had no usable message');
     return;
   }
-  if (message.eventType && !/message\.(created|received|inbound)/i.test(message.eventType)) {
-    log.debug({ eventType: message.eventType }, 'ignoring non-message event');
+  if (message.eventType && !/chat|message|inbound/i.test(message.eventType)) {
+    log.info({ eventType: message.eventType }, 'ignoring non-message event');
     return;
   }
 
@@ -76,12 +81,19 @@ linqRouter.post('/api/simulate/message', webhookLimiter, (req, res, next) => {
       res.json({
         kind: result.kind,
         reply: result.reply,
+        // Enough for the dashboard to show what the agent understood before
+        // anything was decided. Deliberately a projection, not the full
+        // mandate: this endpoint is a test seam, not a data API.
         mandate: result.mandate
           ? {
               id: result.mandate.id,
               state: result.mandate.state,
               merchant: result.mandate.scope.merchant,
               amountCents: result.mandate.amountCents,
+              recurrence: result.mandate.scope.recurrence,
+              category: result.mandate.scope.category,
+              seats: result.mandate.seats,
+              purpose: result.mandate.purpose,
               policyDecision: result.mandate.policyDecision,
               policyReasons: result.mandate.policyReasons,
             }
