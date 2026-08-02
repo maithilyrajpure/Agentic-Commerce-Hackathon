@@ -348,6 +348,17 @@ export class MandateOrchestrator {
       return m;
     });
 
+    // The Prava session created for this request will never be paid now, so
+    // close it; otherwise its order sits on dashboard.prava.space as Pending
+    // forever. Report-status cannot do this — an unpaid session has no
+    // txn_ref_id to report against.
+    if (mandate.prava.sessionId) {
+      const closed = await pravaClient().closeUnpaidSession(mandate.prava.sessionId, mandate.id);
+      await this.repo.withLock(mandateId, async (m) => {
+        appendAudit(m, 'prava', closed.ok ? 'session.closed' : 'session.close_failed', closed.detail);
+      });
+    }
+
     await this.notify(
       mandate.id,
       mandate.requesterPhone,
@@ -573,12 +584,24 @@ export class MandateOrchestrator {
     // APPROVED or DECLINED, whenever a session exists — including when no Prava
     // mandate was ever resolved, which is precisely the case that used to leave
     // orders stuck.
-    const sessionReport = current.prava.sessionId
+    let sessionReport = current.prava.sessionId
       ? await prava.reportSessionStatus(current.prava.sessionId, {
           approved,
           txnRefId: current.prava.txnRefId,
         })
       : undefined;
+
+    // A session with zero payment attempts has no txn_ref_id, and report-status
+    // cannot settle what was never paid — that is exactly the "Payment
+    // Attempts (0)" order dangling as Pending on the dashboard. The correct
+    // close for an unpaid session is revocation, so the order stops pending.
+    if (sessionReport && !sessionReport.ok && /no txn_ref_id/i.test(sessionReport.detail)) {
+      const closed = await prava.closeUnpaidSession(current.prava.sessionId!, mandateId);
+      sessionReport = {
+        ok: closed.ok,
+        detail: closed.ok ? closed.detail : `unsettleable and close failed: ${closed.detail}`,
+      };
+    }
 
     const mandate = await this.repo.withLock(mandateId, async (m) => {
       const target =
@@ -695,6 +718,12 @@ export class MandateOrchestrator {
         if (!mandate) continue;
         expired += 1;
         await this.notify(mandate.id, mandate.requesterPhone, 'expired', copy.expiredMessage(mandate), `expired:${mandate.id}`);
+        if (mandate.prava.sessionId) {
+          const closed = await pravaClient().closeUnpaidSession(mandate.prava.sessionId, mandate.id);
+          await this.repo.withLock(mandate.id, async (mm) => {
+            appendAudit(mm, 'prava', closed.ok ? 'session.closed' : 'session.close_failed', closed.detail);
+          });
+        }
       } catch (error) {
         logger.warn({ mandateId: candidate.id, err: (error as Error).message }, 'expiry sweep skipped a mandate');
       }

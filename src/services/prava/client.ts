@@ -495,6 +495,33 @@ export class PravaClient {
    * revoking the session only closes the setup surface. We do both, and we do
    * not treat a failed upstream cancel as a local success.
    */
+  /**
+   * Close a session that will never be paid.
+   *
+   * report-status can only settle a session that has a payment attempt: the
+   * cardholder must have completed Prava's hosted approval for a txn_ref_id to
+   * exist. A session abandoned before that — approver declined, mandate
+   * expired, checkout ran on the fallback card — has "Payment Attempts (0)"
+   * and no line items, so the only way to stop its order dangling as Pending
+   * on dashboard.prava.space is to revoke the session itself.
+   */
+  async closeUnpaidSession(sessionId: string, mandateId: string): Promise<{ ok: boolean; detail: string }> {
+    if (!capabilities.prava) return { ok: false, detail: 'simulated (no PRAVA_API_KEY)' };
+    if (!sessionId || sessionId.startsWith('sim_')) return { ok: false, detail: 'no live session to close' };
+    try {
+      await this.http.post(PRAVA_ROUTES.revokeSession(sessionId), {}, {
+        idempotencyKey: `close-session:${mandateId}`,
+        retryable: false,
+      });
+      logger.info({ sessionId, mandateId }, 'prava unpaid session closed');
+      return { ok: true, detail: 'session revoked (order closed, no payment to settle)' };
+    } catch (error) {
+      const detail = describeHttpError(error);
+      logger.warn({ sessionId, mandateId, err: detail }, 'prava session close failed');
+      return { ok: false, detail };
+    }
+  }
+
   async revoke(mandate: Mandate): Promise<{ ok: boolean; detail: string }> {
     if (!capabilities.prava) return { ok: false, detail: 'simulated (no PRAVA_API_KEY)' };
 

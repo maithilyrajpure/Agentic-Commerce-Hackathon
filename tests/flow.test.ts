@@ -111,12 +111,19 @@ class FakePrava extends PravaClient {
     return { ok: true, detail: 'completed', status: 'completed', txnRefId: `ref_${sessionId}` };
   }
 
-  override async reportSessionStatus(sessionId: string, outcome: any) {
+  override async reportSessionStatus(sessionId: string, outcome: { approved: boolean; txnRefId?: string }) {
     return {
       ok: true,
       detail: 'session reported',
-      request: { txn_ref_id: outcome.txnRefId ?? `ref_${sessionId}`, txn_status: outcome.approved ? 'APPROVED' : 'DECLINED' },
+      request: {
+        txn_ref_id: outcome.txnRefId ?? `ref_${sessionId}`,
+        txn_status: (outcome.approved ? 'APPROVED' : 'DECLINED') as 'APPROVED' | 'DECLINED',
+      },
     };
+  }
+
+  override async closeUnpaidSession(sessionId: string) {
+    return { ok: true, detail: 'session revoked (order closed)' };
   }
 
   override async revoke(mandate: any) {
