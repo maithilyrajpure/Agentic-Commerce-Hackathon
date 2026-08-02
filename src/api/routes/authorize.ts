@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { env } from '../../config/env.js';
 import { AppError } from '../../domain/errors.js';
-import { verifyGrant, verifyWebhookSignature } from '../../lib/crypto.js';
+import { verifyGrant, verifyWebhookSignature, verifyApprovalPin } from '../../lib/crypto.js'
 import { logger } from '../../lib/logger.js';
 import { scrubDeep } from '../../lib/redact.js';
 import { orchestrator } from '../../orchestrator/mandateOrchestrator.js';
@@ -78,6 +78,17 @@ authorizeRouter.post(
         );
         log.info({ hasReason: Boolean(note?.trim()) }, 'mandate declined by approver');
         res.type('html').send(declinedPage(mandate, note));
+        return;
+      }
+
+      // Fallback second factor. A fingerprint is a local gate the server can't
+      // see, so when the approver instead enters the code from their message we
+      // verify it here. If a code was submitted it must be correct; if none was
+      // (the fingerprint path), the signed token remains the authority.
+      const submittedCode = typeof req.body?.code === 'string' ? req.body.code : '';
+      if (submittedCode && !verifyApprovalPin(verification.grant.mandateId, submittedCode)) {
+        log.warn('approval code mismatch');
+        res.status(401).type('html').send(invalidTokenPage('bad_code'));
         return;
       }
 

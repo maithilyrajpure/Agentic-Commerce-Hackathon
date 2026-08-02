@@ -3,6 +3,7 @@ import { spendPolicy } from '../../config/policy.js';
 import { formatUsd } from '../../domain/money.js';
 import type { Mandate } from '../../domain/mandate.js';
 import type { PolicyDecision } from '../policy/engine.js';
+import { approvalPin } from '../../lib/crypto.js';
 
 /**
  * Message copy.
@@ -87,8 +88,10 @@ export function approvalRequestMessage(mandate: Mandate, decision: PolicyDecisio
     '',
     `Approving releases one card: ${scopeSummary(mandate)}`,
     '',
-    'Approve with your passkey:',
+    'Approve with your fingerprint (or use the code if your device has no sensor):',
     approveUrl,
+    '',
+    `Fallback code: ${approvalPin(mandate.id)}`,
   );
 }
 

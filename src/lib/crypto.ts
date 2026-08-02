@@ -83,3 +83,24 @@ export function verifyWebhookSignature(rawBody: string, header: string | undefin
 export function randomToken(bytes = 24): string {
   return randomBytes(bytes).toString('base64url');
 }
+
+/**
+ * A 6-digit approval PIN derived deterministically from the mandate id and the
+ * signing secret. Nothing to store: the same value can be re-derived wherever
+ * the secret is known — computed once for the approval message, checked again
+ * when the approver submits it. It is the fallback second factor for approvers
+ * on a device without a fingerprint or Face ID sensor.
+ */
+export function approvalPin(mandateId: string, secret: string = env.CALLBACK_SIGNING_SECRET): string {
+  const digest = createHmac('sha256', secret).update(`approval-pin:${mandateId}`).digest();
+  // First 4 bytes -> unsigned int -> 6 digits, zero-padded.
+  const n = digest.readUInt32BE(0) % 1_000_000;
+  return String(n).padStart(6, '0');
+}
+
+/** Constant-time check of a submitted approval PIN. */
+export function verifyApprovalPin(mandateId: string, submitted: string): boolean {
+  const expected = approvalPin(mandateId);
+  const clean = String(submitted ?? '').replace(/\D/g, '');
+  return clean.length === expected.length && safeEqual(clean, expected);
+}

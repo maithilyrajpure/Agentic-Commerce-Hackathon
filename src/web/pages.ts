@@ -96,6 +96,22 @@ button:active{transform:translateY(1px)}
 .why input:focus{outline:2px solid var(--stop); outline-offset:-1px}
 .why p{font-size:12px; color:var(--ink-2); margin-top:8px}
 
+/* Fallback-code entry. Mirrors the decline reason box but in the accent, since
+   it is part of approving rather than refusing. */
+.codebox{ margin-bottom:16px; border:1px solid var(--rule); border-radius:var(--radius); background:var(--card); padding:14px 16px; animation:unfold .18s ease-out; }
+.codebox[hidden]{display:none}
+.codebox label{display:block; font-family:var(--font-display); font-size:10px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--ink-2); margin-bottom:8px}
+.codebox input{ width:100%; font-family:var(--font-mono, ui-monospace, monospace); font-size:22px; letter-spacing:.34em; text-align:center; padding:12px; border:1px solid var(--rule); border-radius:var(--radius); background:var(--bg, #fff); color:var(--ink); }
+.codebox input:focus{outline:2px solid var(--accent, #5B54E8); outline-offset:-1px}
+.codebox p{font-size:12px; color:var(--ink-2); margin-top:8px}
+.gatemsg{ font-size:13px; color:var(--stop); margin-top:12px; }
+.gatemsg[hidden]{display:none}
+.alt{ margin-top:14px; }
+.linklike{ background:none; border:0; padding:0; font-family:inherit; font-size:13px; color:var(--ink-2); text-decoration:underline; text-underline-offset:2px; cursor:pointer; }
+.linklike:hover{ color:var(--ink); }
+.linklike[hidden]{display:none}
+
+
 .stamp{
   display:inline-flex; align-items:center; gap:7px;
   font-family:var(--font-display); font-size:11px; font-weight:700;
@@ -195,10 +211,17 @@ export function approvalPage(mandate: Mandate, token: string): string {
            placeholder="e.g. we already have seats on the team plan">
     <p>Optional, but the requester sees this verbatim. Press Decline again to confirm.</p>
   </div>
+  <div class="codebox" id="codebox" hidden>
+    <label for="code">Enter the code from your message</label>
+    <input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]*" placeholder="6-digit code">
+    <p>Your approval message ends with a fallback code. Type it, then Approve.</p>
+  </div>
   <div class="actions">
-    <button class="primary" id="approve">Approve with passkey</button>
+    <button class="primary" id="approve">Approve with fingerprint</button>
     <button class="secondary" id="decline">Decline</button>
   </div>
+  <p class="gatemsg" id="gatemsg" hidden></p>
+  <p class="alt"><button type="button" class="linklike" id="usecode">No fingerprint on this device? Use a code</button></p>
 </div>
 ${footer(mandate)}`,
     `<script>
@@ -208,65 +231,97 @@ ${footer(mandate)}`,
   var decline=document.getElementById('decline');
   var why=document.getElementById('why');
   var reason=document.getElementById('reason');
-  var armed=false;
+  var codebox=document.getElementById('codebox');
+  var code=document.getElementById('code');
+  var usecode=document.getElementById('usecode');
+  var gatemsg=document.getElementById('gatemsg');
+  var armed=false, codeMode=false;
+  var CK='cardguard.pk.'+location.hostname;
 
-  async function submit(action, button, workingLabel){
-    approve.disabled=true; decline.disabled=true;
-    button.textContent=workingLabel;
+  function setMsg(t){ if(!gatemsg) return; if(t){ gatemsg.textContent=t; gatemsg.hidden=false; } else { gatemsg.textContent=''; gatemsg.hidden=true; } }
+  function rand(n){ var a=new Uint8Array(n); window.crypto.getRandomValues(a); return a; }
+  function bufToB64u(buf){ var b=new Uint8Array(buf),s=''; for(var i=0;i<b.length;i++)s+=String.fromCharCode(b[i]); return btoa(s).replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=+$/,''); }
+  function b64uToBuf(str){ str=str.replace(/-/g,'+').replace(/_/g,'/'); while(str.length%4)str+='='; var bin=atob(str),b=new Uint8Array(bin.length); for(var i=0;i<bin.length;i++)b[i]=bin.charCodeAt(i); return b.buffer; }
+
+  // The fingerprint gate. On a device with a sensor this MUST pass before the
+  // approval is sent: cancelling stops here. First time on a hostname we enroll
+  // a platform passkey (Touch/Face ID prompt); after that we assert it. The
+  // signed token remains the server-side authority; this is the local factor
+  // the approver actually feels.
+  async function fingerprint(){
+    if(!(window.PublicKeyCredential && navigator.credentials && window.isSecureContext)) return {ok:false, why:'unsupported'};
+    var available=false;
+    try{ available=await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable(); }catch(e){}
+    if(!available) return {ok:false, why:'no-sensor'};
+    var rpId=location.hostname, stored=null;
+    try{ stored=localStorage.getItem(CK); }catch(e){}
     try{
-      // WebAuthn where the device has an enrolled platform authenticator. The
-      // signed token is the server-side authority either way; this is an
-      // additional local factor, never the only one.
-      if(action==='approve' && window.PublicKeyCredential && navigator.credentials){
-        try{
-          var available=await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
-          if(available){
-            await navigator.credentials.get({
-              publicKey:{
-                challenge:Uint8Array.from(token.slice(0,32).padEnd(32,'0'),function(c){return c.charCodeAt(0)}),
-                userVerification:'preferred',
-                timeout:8000,
-                rpId:location.hostname
-              }
-            }).catch(function(){/* no enrolled passkey for this hostname: fall through to the signed token */});
-          }
-        }catch(e){}
+      if(stored){
+        await navigator.credentials.get({publicKey:{
+          challenge:rand(32), rpId:rpId, timeout:60000, userVerification:'required',
+          allowCredentials:[{id:b64uToBuf(stored), type:'public-key'}]
+        }});
+      } else {
+        var cred=await navigator.credentials.create({publicKey:{
+          challenge:rand(32),
+          rp:{id:rpId, name:'CardGuard'},
+          user:{id:rand(16), name:'approver', displayName:'CardGuard approver'},
+          pubKeyCredParams:[{alg:-7,type:'public-key'},{alg:-257,type:'public-key'}],
+          authenticatorSelection:{authenticatorAttachment:'platform', userVerification:'required', residentKey:'preferred'},
+          timeout:60000
+        }});
+        try{ localStorage.setItem(CK, bufToB64u(cred.rawId)); }catch(e){}
       }
-      var res=await fetch('/authorize/'+encodeURIComponent(token),{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({action:action, reason:(reason&&reason.value||'').trim()})
-      });
-      var html=await res.text();
-      document.open(); document.write(html); document.close();
-    }catch(err){
-      button.textContent='Could not reach the server. Try again.';
-      approve.disabled=false; decline.disabled=false;
-    }
+      return {ok:true};
+    }catch(err){ return {ok:false, why:(err&&err.name)||'failed'}; }
   }
 
-  approve.addEventListener('click',function(){submit('approve',approve,'Verifying…')});
+  async function post(action, extra){
+    var body=Object.assign({action:action, reason:(reason&&reason.value||'').trim()}, extra||{});
+    var res=await fetch('/authorize/'+encodeURIComponent(token),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    var html=await res.text(); document.open(); document.write(html); document.close();
+  }
 
-  // Declining is two taps: the first reveals the reason field, the second
-  // commits. Refusing a colleague's purchase deserves the same beat of
-  // deliberation as approving one, and it gives them somewhere to say why.
-  decline.addEventListener('click',function(){
-    if(!armed){
-      armed=true;
-      why.hidden=false;
-      decline.classList.add('armed');
-      decline.textContent='Confirm decline';
-      if(reason) reason.focus();
+  function enterCodeMode(msg){
+    codeMode=true; if(codebox)codebox.hidden=false; if(usecode)usecode.hidden=true;
+    approve.textContent='Approve with code'; if(msg)setMsg(msg); else setMsg(''); if(code)code.focus();
+  }
+
+  async function doApprove(){
+    setMsg('');
+    if(codeMode){
+      var v=(code&&code.value||'').replace(/\\D/g,'');
+      if(v.length<6){ setMsg('Enter the 6-digit code from your message.'); if(code)code.focus(); return; }
+      approve.disabled=true; decline.disabled=true; approve.textContent='Verifying code…';
+      try{ await post('approve',{code:v}); }
+      catch(e){ approve.textContent='Could not reach the server. Try again.'; approve.disabled=false; decline.disabled=false; }
       return;
     }
-    submit('decline',decline,'Declining…');
-  });
-
-  if(reason){
-    reason.addEventListener('keydown',function(ev){
-      if(ev.key==='Enter'){ ev.preventDefault(); submit('decline',decline,'Declining…'); }
-    });
+    approve.disabled=true; decline.disabled=true; approve.textContent='Waiting for fingerprint…';
+    var r=await fingerprint();
+    if(!r.ok){
+      approve.disabled=false; decline.disabled=false; approve.textContent='Approve with fingerprint';
+      if(r.why==='unsupported' || r.why==='no-sensor'){ enterCodeMode('This device has no fingerprint or Face ID, so enter the code from your message instead.'); }
+      else if(r.why==='NotAllowedError' || r.why==='AbortError'){ setMsg('Fingerprint cancelled — approval not sent. Try again, or use the code.'); }
+      else { setMsg('Could not read your fingerprint. Try again, or use the code below.'); if(usecode)usecode.hidden=false; }
+      return;
+    }
+    approve.textContent='Approving…';
+    try{ await post('approve'); }
+    catch(e){ approve.textContent='Could not reach the server. Try again.'; approve.disabled=false; decline.disabled=false; }
   }
+
+  approve.addEventListener('click', doApprove);
+  if(usecode) usecode.addEventListener('click', function(){ enterCodeMode(''); });
+  if(code) code.addEventListener('keydown', function(e){ if(e.key==='Enter'){ e.preventDefault(); doApprove(); } });
+
+  // Declining is two taps: first reveals the reason field, second commits.
+  decline.addEventListener('click',function(){
+    if(!armed){ armed=true; why.hidden=false; decline.classList.add('armed'); decline.textContent='Confirm decline'; if(reason) reason.focus(); return; }
+    approve.disabled=true; decline.disabled=true; decline.textContent='Declining…';
+    post('decline').catch(function(){ decline.textContent='Could not reach the server. Try again.'; approve.disabled=false; decline.disabled=false; });
+  });
+  if(reason){ reason.addEventListener('keydown',function(ev){ if(ev.key==='Enter'){ ev.preventDefault(); decline.click(); } }); }
 })();
 </script>`,
   );
@@ -320,6 +375,10 @@ export function invalidTokenPage(reason: string): string {
     used: {
       title: 'Already decided',
       body: 'This mandate has already been approved, declined, or expired. Check the dashboard for its current state.',
+    },
+    bad_code: {
+      title: 'That code did not match',
+      body: 'The approval code was incorrect. Open the link again from your message and re-enter the code exactly as shown.',
     },
   };
   const c = copy[reason] ?? copy.malformed!;
