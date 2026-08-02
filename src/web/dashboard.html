@@ -172,6 +172,8 @@ header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:2
 .bubble{display:inline-block;text-align:left;background:var(--surface-2);border:1px solid var(--rule-soft);border-radius:14px;padding:10px 14px;font-size:13.5px;white-space:pre-wrap;word-break:break-word;color:var(--ink)}
 .msg.to-approver .bubble{background:var(--wait-soft);border-color:#CBDFEE}
 .sim-note{display:flex;align-items:center;gap:8px;margin-bottom:13px;font-size:12px;color:var(--ink-2)}
+.prava-sim-note{margin-bottom:16px;padding:11px 14px;border-radius:var(--radius);font-size:12.5px;border:1px solid var(--limit);border-left-width:3px;background:var(--limit-soft);color:var(--ink-2)}
+.prava-sim-note strong{color:var(--limit);display:block;margin-bottom:4px;font-size:12px;letter-spacing:.04em;text-transform:uppercase}
 .probe-out{margin-top:12px;padding:11px 14px;border-radius:var(--radius);font-size:13px;border:1px solid var(--stop);border-left-width:3px;background:var(--stop-soft);color:var(--stop)}
 .probe-out.ran{border-color:var(--limit);background:var(--limit-soft);color:var(--limit)}
 .dim{color:var(--ink-3);font-size:13px}
@@ -447,9 +449,20 @@ header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:2
       acts+='<button class="probe" data-probe="'+m.id+'">Simulate rogue re-charge</button>';
     }
 
+    var pravaSimulated=m.prava.sessionId&&String(m.prava.sessionId).indexOf('sim_')===0;
+    var pravaSimNote=pravaSimulated
+      ?'<div class="prava-sim-note"><strong>⚠ Prava · simulated</strong>'
+        +'The Prava mandate session is simulated — the PRAVA_API_KEY is not configured or the API returned an error, '
+        +'so no real credential was minted. The browser agent ran checkout with a test card directly. '
+        +'In production with a live Prava key, steps 1–3 of the Prava API flow (session → passkey charge → Visa report) '
+        +'all produce real session IDs here.'
+        +'</div>'
+      :'';
+
     els.dBody.innerHTML=
       '<section class="cred">'
         +'<h2>Scoped credential</h2>'
+        +pravaSimNote
         +'<div class="lock">🔒 '+esc(m.scope.merchant)+' <small>and nowhere else</small></div>'
         +'<div class="cred-amt">'+usd(m.amountCents)+'</div>'
         +meter('Spent against this mandate',spent,m.scope.totalCapCents,m.state)
