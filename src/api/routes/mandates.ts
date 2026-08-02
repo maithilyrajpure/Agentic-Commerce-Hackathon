@@ -6,7 +6,20 @@ import { toPublicMandate } from '../../domain/mandate.js';
 import { orchestrator } from '../../orchestrator/mandateOrchestrator.js';
 import { apiLimiter, asyncRoute } from '../middleware.js';
 
+import { getRepository } from '../../store/index.js';
+
 export const mandateRouter = Router();
+
+/** Reset/empty all stored spend and mandates for testing and demos. */
+mandateRouter.post(
+  '/api/reset',
+  apiLimiter,
+  asyncRoute(async (_req, res) => {
+    const repo = await getRepository();
+    await repo.clear();
+    res.json({ ok: true, message: 'All mandates and spend history cleared. Monthly limit reset to $0.' });
+  }),
+);
 
 /**
  * Read/control API behind the dashboard.
