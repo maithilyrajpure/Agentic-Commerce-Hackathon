@@ -519,10 +519,16 @@ header.top{display:flex;align-items:flex-end;justify-content:space-between;gap:2
     var out=document.getElementById('probe-out');
     try{
       var r=await api('/api/mandates/'+encodeURIComponent(id)+'/simulate-second-charge',{method:'POST'});
-      out.innerHTML='<div class="probe-out'+(r.blocked?'':' ran')+'">'
+      var html='<div class="probe-out'+(r.blocked?'':' ran')+'">'
         +'<b>'+(r.blocked?'Blocked.':'Ran.')+'</b> '+esc(r.reason)+'</div>';
+      out.innerHTML=html;
       await refresh();
-    }catch(err){ out.innerHTML='<div class="probe-out">'+esc(err.message)+'</div>'; }
+      var el=document.getElementById('probe-out'); if(el) el.innerHTML=html;
+    }catch(err){
+      var errHtml='<div class="probe-out">'+esc(err.message)+'</div>';
+      out.innerHTML=errHtml;
+      var el=document.getElementById('probe-out'); if(el) el.innerHTML=errHtml;
+    }
     finally{ btn.disabled=false; btn.textContent='Simulate rogue re-charge'; }
   }
 
