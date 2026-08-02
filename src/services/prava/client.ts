@@ -394,8 +394,9 @@ export class PravaClient {
       return { ok: false, detail: 'simulated (no PRAVA_API_KEY or sim_ session)' };
     }
     const request = {
-      status: outcome.approved ? 'APPROVED' : 'DECLINED',
+      txn_ref_id: outcome.txnRefId ?? 'tli_001',
       txn_status: outcome.approved ? 'APPROVED' : 'DECLINED',
+      status: outcome.approved ? 'APPROVED' : 'DECLINED',
       txn_type: 'PURCHASE',
       raw_response: outcome.approved ? 'Transaction approved at merchant gateway' : 'Declined by merchant payment gateway',
       ...(outcome.authorizationCode ? { authorization_code: outcome.authorizationCode.slice(0, 128) } : {}),
@@ -404,6 +405,7 @@ export class PravaClient {
         ? { amount_paid: centsToAmountString(outcome.amountCents) }
         : {}),
     };
+
 
     try {
       const response = await this.http.post<ReportChargeResponse>(

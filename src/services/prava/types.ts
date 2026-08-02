@@ -18,7 +18,9 @@
 export const PRAVA_ROUTES = {
   createSession: '/v1/sessions',
   revokeSession: (id: string) => `/v1/sessions/${encodeURIComponent(id)}/revoke`,
+  getPaymentResult: (id: string) => `/v1/sessions/${encodeURIComponent(id)}/payment-result`,
   reportSessionStatus: (id: string) => `/v1/sessions/${encodeURIComponent(id)}/report-status`,
+
 
   listMandates: '/v1/mandates',
   getMandate: (id: string) => `/v1/mandates/${encodeURIComponent(id)}`,
