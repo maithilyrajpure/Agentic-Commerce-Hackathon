@@ -9,6 +9,12 @@ const app = express();
 // Requirement 1: Initialize Express server with JSON body parser
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(express.static('public'));
+
+// Observability Dashboard route for Judges
+app.get('/dashboard', (_req: Request, res: Response) => {
+  res.sendFile('dashboard.html', { root: 'public' });
+});
 
 // Requirement 3: POST /linq-webhook endpoint
 app.post('/linq-webhook', (req: Request, res: Response): void => {
