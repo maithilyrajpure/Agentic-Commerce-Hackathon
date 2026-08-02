@@ -18,9 +18,8 @@
 export const PRAVA_ROUTES = {
   createSession: '/v1/sessions',
   revokeSession: (id: string) => `/v1/sessions/${encodeURIComponent(id)}/revoke`,
-  getPaymentResult: (id: string) => `/v1/sessions/${encodeURIComponent(id)}/payment-result`,
   reportSessionStatus: (id: string) => `/v1/sessions/${encodeURIComponent(id)}/report-status`,
-
+  paymentResult: (id: string) => `/v1/sessions/${encodeURIComponent(id)}/payment-result`,
 
   listMandates: '/v1/mandates',
   getMandate: (id: string) => `/v1/mandates/${encodeURIComponent(id)}`,
@@ -100,22 +99,21 @@ export interface ChargeMandateRequest {
   purchase_context?: PurchaseContextEntry[];
 }
 
+/**
+ * Session-level settlement, per the REST checkout walkthrough step 4. This is
+ * what flips the order on dashboard.prava.space out of "Pending"; the
+ * mandate-level charge report does not, because the dashboard tracks sessions.
+ */
+export interface ReportSessionStatusRequest {
+  txn_ref_id: string;
+  txn_status: 'APPROVED' | 'DECLINED';
+}
+
 export interface ReportChargeRequest {
   txn_status: 'APPROVED' | 'DECLINED';
   txn_type: 'PURCHASE';
   authorization_code?: string;
   /** Max 2 characters. */
-  response_code?: string;
-  amount_paid?: string;
-}
-
-export interface ReportSessionStatusRequest {
-  txn_ref_id?: string;
-  txn_status: 'APPROVED' | 'DECLINED';
-  status?: 'APPROVED' | 'DECLINED';
-  txn_type?: string;
-  raw_response?: string;
-  authorization_code?: string;
   response_code?: string;
   amount_paid?: string;
 }
@@ -178,6 +176,34 @@ export interface ReportChargeResponse {
   /** The mandate's status after settlement. */
   mandateStatus?: string;
   visaConfirmation?: 'SUCCESS' | 'FAILURE';
+}
+
+/** Line item inside a payment-result transaction. Carries the one-time card. */
+export interface PaymentResultLineItem {
+  txn_ref_id: string;
+  merchant_name?: string;
+  merchant_url?: string;
+  total_amount?: string;
+  status?: string;
+  token?: string;
+  dynamic_cvv?: string;
+  expiry_month?: string;
+  expiry_year?: string;
+}
+
+export interface PaymentResultTransaction {
+  txn_id?: string;
+  status?: string;
+  line_items?: PaymentResultLineItem[];
+}
+
+/** GET /v1/sessions/{id}/payment-result */
+export interface PaymentResultResponse {
+  session_id?: string;
+  order_id?: string;
+  /** pending | awaiting_result | completed | failed */
+  status?: string;
+  transactions?: PaymentResultTransaction[];
 }
 
 export interface PravaApiError {

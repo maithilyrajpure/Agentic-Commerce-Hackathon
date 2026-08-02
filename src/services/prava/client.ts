@@ -16,6 +16,7 @@ import {
   type MandateCredentials,
   type PravaMandateSummary,
   type PurchaseContextEntry,
+  type PaymentResultResponse,
   type ReportChargeRequest,
   type ReportChargeResponse,
   type ReportSessionStatusRequest,
@@ -70,12 +71,29 @@ export interface ChargeResult {
   detail: string;
 }
 
+/** Outcome of the session-level settlement call (walkthrough step 4). */
+export interface SessionReportResult {
+  ok: boolean;
+  detail: string;
+  request?: ReportSessionStatusRequest;
+  response?: Record<string, unknown>;
+}
+
+/** What a payment-result poll yielded that the caller actually needs. */
+export interface PaymentResultSummary {
+  ok: boolean;
+  detail: string;
+  status?: string;
+  orderId?: string;
+  txnRefId?: string;
+}
+
 export interface ReportResult {
   ok: boolean;
   detail: string;
   /** The exact response body, kept verbatim as transaction evidence. */
   response?: ReportChargeResponse;
-  request?: ReportChargeRequest | ReportSessionStatusRequest | Record<string, unknown>;
+  request?: ReportChargeRequest;
 }
 
 export class PravaClient {
@@ -377,57 +395,96 @@ export class PravaClient {
     }
   }
 
-  /**
-   * Report status directly for a session ID.
-   * Required by Prava to settle session/order status from Pending to DECLINED or APPROVED
-   * in the Prava Dashboard (POST /v1/sessions/{sessionId}/report-status).
-   */
-  async reportSessionStatus(
-    sessionId: string,
-    outcome: {
-      approved: boolean;
-      authorizationCode?: string;
-      responseCode?: string;
-      amountCents?: number;
-      txnRefId?: string;
-    },
-  ): Promise<ReportResult> {
-    if (!capabilities.prava || !sessionId || sessionId.startsWith('sim_')) {
-      return { ok: false, detail: 'simulated (no PRAVA_API_KEY or sim_ session)' };
-    }
-    const txnStatus: 'APPROVED' | 'DECLINED' = outcome.approved ? 'APPROVED' : 'DECLINED';
-    const request: ReportSessionStatusRequest = {
-      txn_ref_id: outcome.txnRefId ?? 'tli_001',
-      txn_status: txnStatus,
-      status: txnStatus,
-      txn_type: 'PURCHASE',
-      raw_response: outcome.approved ? 'Transaction approved at merchant gateway' : 'Declined by merchant payment gateway',
-      ...(outcome.authorizationCode ? { authorization_code: outcome.authorizationCode.slice(0, 128) } : {}),
-      ...(outcome.responseCode ? { response_code: outcome.responseCode.slice(0, 2) } : {}),
-      ...(outcome.approved && outcome.amountCents !== undefined
-        ? { amount_paid: centsToAmountString(outcome.amountCents) }
-        : {}),
-    };
+  // -- Session settlement (hosted checkout, steps 3 and 4) -----------------
 
+  /**
+   * Step 3 of the REST checkout walkthrough: poll the session for its result.
+   *
+   * The value we need downstream is `txn_ref_id`, which identifies the line
+   * item to settle in step 4. It lives at transactions[0].line_items[0], and
+   * every field is treated as optional because the shape while the cardholder
+   * is still on the hosted page ("pending") carries no transactions at all.
+   *
+   * The one-time card credentials also live here, and are deliberately NOT
+   * returned or logged: this method exists to settle an order, not to widen
+   * where card data can travel.
+   */
+  async getPaymentResult(sessionId: string): Promise<PaymentResultSummary> {
+    if (!capabilities.prava) {
+      return { ok: false, detail: 'simulated (no PRAVA_API_KEY)' };
+    }
 
     try {
-      const response = await this.http.post<ReportChargeResponse>(
-        PRAVA_ROUTES.reportSessionStatus(sessionId),
-        request,
-        { idempotencyKey: `report-session:${sessionId}` },
-      );
+      const body = await this.http.get<PaymentResultResponse>(PRAVA_ROUTES.paymentResult(sessionId));
+      const txnRefId = body?.transactions?.[0]?.line_items?.[0]?.txn_ref_id;
       logger.info(
-        { sessionId, txnStatus: request.txn_status, settlement: response.status, visa: response.visaConfirmation },
-        'prava session status settled',
+        { sessionId, status: body?.status, orderId: body?.order_id, hasTxnRef: Boolean(txnRefId) },
+        'prava payment result polled',
       );
-      return { ok: true, detail: `${response.status} / visa ${response.visaConfirmation ?? 'n/a'}`, response, request };
+      // Deliberately NOT returning the body: line_items carry `token` and
+      // `dynamic_cvv`. Card data must not outlive the function that reads it,
+      // so only the identifiers the caller needs are passed back.
+      return {
+        ok: true,
+        detail: body?.status ?? 'unknown',
+        status: body?.status,
+        orderId: body?.order_id,
+        txnRefId,
+      };
     } catch (error) {
       const detail = describeHttpError(error);
-      logger.error({ sessionId, err: detail }, 'prava session status report failed');
-      return { ok: false, detail, request };
+      logger.warn({ sessionId, err: detail }, 'prava payment result poll failed');
+      return { ok: false, detail };
     }
   }
 
+  /**
+   * Step 4: settle the session so the order stops showing as Pending.
+   *
+   * This is separate from reportCharge, and both are needed. reportCharge
+   * settles the *mandate* transaction; this settles the *session*, which is the
+   * record dashboard.prava.space displays. Reporting only the charge leaves the
+   * dashboard order pending forever.
+   *
+   * If no txn_ref_id was captured we poll for one first rather than guessing,
+   * because settling the wrong line item is worse than reporting late.
+   */
+  async reportSessionStatus(
+    sessionId: string,
+    outcome: { approved: boolean; txnRefId?: string },
+  ): Promise<SessionReportResult> {
+    if (!capabilities.prava) {
+      return { ok: false, detail: 'simulated (no PRAVA_API_KEY)' };
+    }
+
+    let txnRefId = outcome.txnRefId;
+    if (!txnRefId) {
+      const polled = await this.getPaymentResult(sessionId);
+      txnRefId = polled.txnRefId;
+    }
+    if (!txnRefId) {
+      return { ok: false, detail: 'no txn_ref_id available to settle (session may not have been paid)' };
+    }
+
+    const request: ReportSessionStatusRequest = {
+      txn_ref_id: txnRefId,
+      txn_status: outcome.approved ? 'APPROVED' : 'DECLINED',
+    };
+
+    try {
+      const response = await this.http.post<Record<string, unknown>>(
+        PRAVA_ROUTES.reportSessionStatus(sessionId),
+        request,
+        { idempotencyKey: `session-report:${sessionId}:${txnRefId}` },
+      );
+      logger.info({ sessionId, txnRefId, txnStatus: request.txn_status }, 'prava session settled');
+      return { ok: true, detail: `session reported ${request.txn_status}`, request, response };
+    } catch (error) {
+      const detail = describeHttpError(error);
+      logger.error({ sessionId, txnRefId, err: detail }, 'prava session report failed');
+      return { ok: false, detail, request };
+    }
+  }
 
   // -- Lifecycle -----------------------------------------------------------
 

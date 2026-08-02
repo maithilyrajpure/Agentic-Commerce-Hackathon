@@ -157,6 +157,10 @@ export interface PravaBinding {
   pravaMandateStatus?: string;
   /** Charge transaction id, needed to report the outcome. */
   transactionId?: string;
+  /** Session line-item ref, needed to settle the session on Prava's dashboard. */
+  txnRefId?: string;
+  /** Result of the session-level settlement: APPROVED / DECLINED. */
+  sessionReportedStatus?: string;
   /** Last four of the single-use network token. The token itself is never stored. */
   cardLast4?: string;
   authorizationUrl?: string;
@@ -355,6 +359,8 @@ export function toPublicMandate(mandate: Mandate) {
       pravaMandateId: prava.pravaMandateId,
       pravaMandateStatus: prava.pravaMandateStatus,
       transactionId: prava.transactionId,
+      txnRefId: prava.txnRefId,
+      sessionReportedStatus: prava.sessionReportedStatus,
       cardLast4: prava.cardLast4,
       reportedStatus: prava.reportedStatus,
       visaConfirmation: prava.visaConfirmation,

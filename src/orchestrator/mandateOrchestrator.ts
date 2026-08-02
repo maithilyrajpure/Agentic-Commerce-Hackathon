@@ -437,6 +437,20 @@ export class MandateOrchestrator {
     try {
       // Resolve Prava's mandate id. There is no create-mandate endpoint, so
       // after the passkey we match the mandate to the order we submitted.
+      // Capture the session's line-item ref up front. Settlement in phase 3
+      // needs it, and polling now — while the session is certainly still alive —
+      // is more reliable than re-polling after a checkout that may take minutes.
+      if (mandate.prava.sessionId && !mandate.prava.txnRefId) {
+        const polled = await prava.getPaymentResult(mandate.prava.sessionId);
+        if (polled.txnRefId) {
+          await this.repo.withLock(mandateId, async (m) => {
+            m.prava.txnRefId = polled.txnRefId;
+            appendAudit(m, 'prava', 'session.payment_result', `${polled.status ?? 'unknown'} · ref ${polled.txnRefId}`);
+          });
+          mandate = await this.repo.require(mandateId);
+        }
+      }
+
       let pravaMandateId = mandate.prava.pravaMandateId;
       if (!pravaMandateId) {
         const found = await prava.findMandateForOrder(mandate.prava.orderId, mandate.id);
@@ -550,15 +564,21 @@ export class MandateOrchestrator {
             responseCode: result.responseCode,
             amountCents: current.amountCents,
           })
-        : current.prava.sessionId && !current.prava.sessionId.startsWith('sim_')
-          ? await prava.reportSessionStatus(current.prava.sessionId, {
-              approved,
-              authorizationCode: result.authorizationCode,
-              responseCode: result.responseCode,
-              amountCents: current.amountCents,
-            })
-          : ({ ok: false, detail: 'no charge to report' } as ReportResult);
+        : ({ ok: false, detail: 'no charge to report' } as ReportResult);
 
+    // Settle the SESSION as well as the charge. These are two different records
+    // and reporting one does not settle the other: the mandate report closes the
+    // charge, while dashboard.prava.space displays the session/order, which stays
+    // "Pending" until this call lands. Per the REST walkthrough we always report,
+    // APPROVED or DECLINED, whenever a session exists — including when no Prava
+    // mandate was ever resolved, which is precisely the case that used to leave
+    // orders stuck.
+    const sessionReport = current.prava.sessionId
+      ? await prava.reportSessionStatus(current.prava.sessionId, {
+          approved,
+          txnRefId: current.prava.txnRefId,
+        })
+      : undefined;
 
     const mandate = await this.repo.withLock(mandateId, async (m) => {
       const target =
@@ -597,11 +617,23 @@ export class MandateOrchestrator {
         capturedAt: new Date().toISOString(),
       };
 
-      m.prava.reportedStatus = (report.request as any)?.txn_status ?? (approved ? 'APPROVED' : 'DECLINED');
+      m.prava.reportedStatus = report.request?.txn_status ?? (approved ? 'APPROVED' : 'DECLINED');
+      if (sessionReport?.request) {
+        m.prava.txnRefId = sessionReport.request.txn_ref_id;
+        m.prava.sessionReportedStatus = sessionReport.request.txn_status;
+      }
       m.prava.visaConfirmation = report.response?.visaConfirmation;
       if (report.response?.mandateStatus) m.prava.pravaMandateStatus = report.response.mandateStatus;
 
       appendAudit(m, 'prava', 'charge.reported', report.ok ? report.detail : `failed: ${report.detail}`);
+      if (sessionReport) {
+        appendAudit(
+          m,
+          'prava',
+          sessionReport.ok ? 'session.reported' : 'session.report_failed',
+          sessionReport.ok ? sessionReport.detail : `failed: ${sessionReport.detail}`,
+        );
+      }
       for (const step of result.steps) {
         appendAudit(m, 'browser-agent', `step.${step.ok ? 'ok' : 'fail'}`, `${step.step} (${step.ms}ms)`);
       }

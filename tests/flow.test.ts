@@ -107,6 +107,18 @@ class FakePrava extends PravaClient {
     };
   }
 
+  override async getPaymentResult(sessionId: string) {
+    return { ok: true, detail: 'completed', status: 'completed', txnRefId: `ref_${sessionId}` };
+  }
+
+  override async reportSessionStatus(sessionId: string, outcome: any) {
+    return {
+      ok: true,
+      detail: 'session reported',
+      request: { txn_ref_id: outcome.txnRefId ?? `ref_${sessionId}`, txn_status: outcome.approved ? 'APPROVED' : 'DECLINED' },
+    };
+  }
+
   override async revoke(mandate: any) {
     this.revocations.push(mandate.id);
     return { ok: true, detail: 'mandate cancelled; session revoked' };
