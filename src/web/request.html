@@ -352,6 +352,42 @@
     }
     .reset:hover { border-color: var(--iris-line); color: var(--iris-ink); }
 
+
+    /* THE MANDATE CARD — same object as on the Ledger. It flips into
+       existence when Prava mints the credential, sweeps light while armed,
+       and takes a SPENT stamp when the purchase settles. */
+    .mcard-wrap { perspective: 900px; margin: 0 0 18px; }
+    .mcard { position: relative; aspect-ratio: 1.586; max-width: 330px;
+      border-radius: 14px; padding: 16px 18px; color: #EDEFFB;
+      background: linear-gradient(128deg, #232A55 0%, #1A1F36 55%, #262E63 100%);
+      box-shadow: 0 14px 30px -14px rgba(26,31,54,.5), inset 0 1px 0 rgba(255,255,255,.08);
+      overflow: hidden; display: flex; flex-direction: column;
+      animation: mint .7s cubic-bezier(.2,.8,.2,1); transform-origin: left center; }
+    .mc-sheen { position: absolute; inset: 0; pointer-events: none;
+      background: radial-gradient(120% 90% at 85% -10%, rgba(91,84,232,.45), transparent 55%),
+                  radial-gradient(80% 60% at -10% 110%, rgba(91,84,232,.25), transparent 60%); }
+    .mcard.armed .mc-sheen::after { content: ''; position: absolute; inset: 0;
+      background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,.14) 50%, transparent 60%);
+      transform: translateX(-120%); animation: sweep 3.4s .8s ease-in-out infinite; }
+    .mc-top { display: flex; justify-content: space-between; align-items: center; }
+    .mc-brand { font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 13px; }
+    .mc-kind { font-family: 'JetBrains Mono', monospace; font-size: 9px; letter-spacing: .14em; color: #B9BEE8;
+      border: 1px solid rgba(255,255,255,.25); border-radius: 4px; padding: 2px 6px; }
+    .mc-chip { width: 34px; height: 25px; border-radius: 5px; margin-top: 13px; position: relative;
+      background: linear-gradient(135deg, #D8C68A, #B49A55); }
+    .mc-chip::after { content: ''; position: absolute; inset: 4px; border: 1px solid rgba(0,0,0,.25); border-radius: 3px; }
+    .mc-num { font-family: 'JetBrains Mono', monospace; font-size: 16px; letter-spacing: .08em; margin-top: 12px; font-variant-numeric: tabular-nums; }
+    .mc-lock { font-family: 'JetBrains Mono', monospace; font-size: 9.5px; letter-spacing: .18em; color: #AEB4E4; margin-top: 6px; }
+    .mc-bot { margin-top: auto; display: flex; justify-content: space-between; font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: #C9CDF0; }
+    .mc-stamp { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%) rotate(-14deg);
+      font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 25px; letter-spacing: .18em;
+      padding: 4px 14px; border: 3px double currentColor; border-radius: 6px; color: #8CE8C8;
+      animation: stamp .45s cubic-bezier(.2,1.6,.4,1); }
+    .mcard.spent { filter: grayscale(.7); }
+    @keyframes mint { from { transform: rotateY(70deg) translateX(-12px); opacity: 0; } }
+    @keyframes sweep { to { transform: translateX(220%); } }
+    @keyframes stamp { from { transform: translate(-50%,-50%) rotate(-14deg) scale(1.8); opacity: 0; } }
+
     @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
     @keyframes logIn { to { opacity: 1; transform: none; } }
     @keyframes ping { 0% { box-shadow: 0 0 0 0 rgba(91,84,232,.5); } 70%,100% { box-shadow: 0 0 0 7px rgba(91,84,232,0); } }
@@ -465,6 +501,7 @@
       policyDecision: m.policyDecision || '',
       policyReasons: m.policyReasons || [],
       capCents: scope.perTransactionCapCents || 0,
+      expiresAt: scope.expiresAt || '',
       cardLast4: prava.cardLast4 || '',
       reportedStatus: prava.reportedStatus || '',
       visaConfirmation: prava.visaConfirmation || '',
@@ -608,10 +645,10 @@
 
   function renderOutcome(m){
     var el = $('outcome');
-    if(!isTerminal(m.state)){ el.innerHTML=''; return; }
+    if(!isTerminal(m.state)){ el.innerHTML = m.cardLast4 ? '<div class="outcome">'+rcard(m,'armed')+'</div>' : ''; return; }
     if(m.state === 'COMPLETED'){
       el.innerHTML =
-        '<div class="outcome"><div class="outcome-card win">'
+        '<div class="outcome">'+rcard(m,'spent')+'<div class="outcome-card win">'
         + '<div class="outcome-flag"><span class="ic">✓</span>Purchase completed</div>'
         + '<div class="outcome-line">'+usd(m.amountCents)+' <span class="m">at '+esc(m.merchant)+'</span></div>'
         + '<dl class="outcome-grid">'
@@ -639,6 +676,23 @@
       + '</div></div>';
   }
   function oc(k,v){ return '<div class="oc"><dt>'+k+'</dt><dd>'+v+'</dd></div>'; }
+
+  /* the credential as an object, shared with the Ledger */
+  function rcard(m, mode){
+    var num = m.cardLast4 ? '\u00b7\u00b7\u00b7\u00b7 \u00b7\u00b7\u00b7\u00b7 \u00b7\u00b7\u00b7\u00b7 '+esc(m.cardLast4) : '\u00b7\u00b7\u00b7\u00b7 \u00b7\u00b7\u00b7\u00b7 \u00b7\u00b7\u00b7\u00b7 \u00b7\u00b7\u00b7\u00b7';
+    var right = mode==='armed' && m.expiresAt
+      ? '<span data-exp="'+esc(m.expiresAt)+'"></span>'
+      : '<span>'+(mode==='spent' ? 'USED 1 OF 1' : '\u2014')+'</span>';
+    return '<div class="mcard-wrap"><div class="mcard '+mode+'">'
+      + '<div class="mc-sheen"></div>'
+      + '<div class="mc-top"><span class="mc-brand">CardGuard</span><span class="mc-kind">SINGLE\u00a0USE</span></div>'
+      + '<div class="mc-chip"></div>'
+      + '<div class="mc-num">'+num+'</div>'
+      + '<div class="mc-lock">'+esc((m.merchant||'UNASSIGNED').toUpperCase())+' \u00b7 ONLY</div>'
+      + '<div class="mc-bot"><span>CAP '+usd(m.capCents||m.amountCents)+'</span>'+right+'</div>'
+      + (mode==='spent' ? '<div class="mc-stamp">SPENT</div>' : '')
+      + '</div></div>';
+  }
 
   function paint(m){ renderKicker(m); renderMeta(m); renderLog(m); renderDecisions(m); renderOutcome(m); }
 
@@ -694,6 +748,19 @@
     if(ev.key === 'Enter' || ev.key === ' '){ var chip = ev.target.closest('.chip[data-fill]'); if(chip){ ev.preventDefault(); window.fill(chip.getAttribute('data-fill')); } }
   });
   $('msg').addEventListener('input', function(){ autosize(this); });
+
+
+  /* live countdown on the armed card */
+  setInterval(function(){
+    var now = Date.now();
+    document.querySelectorAll('[data-exp]').forEach(function(el){
+      var t = new Date(el.getAttribute('data-exp')).getTime() - now;
+      if(isNaN(t)) return;
+      if(t <= 0){ el.textContent = '00:00'; return; }
+      var sT = Math.floor(t/1000), mm = Math.floor(sT/60), ss = sT%60;
+      el.textContent = (mm<10?'0':'')+mm+':'+(ss<10?'0':'')+ss+' left';
+    });
+  }, 1000);
 
   try { loadPolicy(); } catch(e){}
 })();

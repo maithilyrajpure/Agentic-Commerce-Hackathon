@@ -251,6 +251,59 @@
     .empty p { font-size: 14px; color: var(--ink-4); }
     .empty a { color: var(--iris-ink); text-decoration: none; font-weight: 500; }
 
+
+    /* ============ THE MANDATE CARD ============
+       The credential as a physical object. It is minted (flips in), armed
+       (a slow light sweep), stamped SPENT when used, striped when revoked.
+       The scope is engraved on it: merchant lock, cap, live countdown.
+       One object, whole story. */
+    .mcard-wrap { perspective: 900px; margin: 2px 0 16px; }
+    .mcard {
+      position: relative; aspect-ratio: 1.586; max-width: 340px;
+      border-radius: 14px; padding: 16px 18px; color: #EDEFFB;
+      background: linear-gradient(128deg, #232A55 0%, #1A1F36 55%, #262E63 100%);
+      box-shadow: 0 14px 30px -14px rgba(26,31,54,.5), inset 0 1px 0 rgba(255,255,255,.08);
+      overflow: hidden; display: flex; flex-direction: column;
+      animation: mint .7s cubic-bezier(.2,.8,.2,1); transform-origin: left center;
+    }
+    .mc-sheen { position: absolute; inset: 0; pointer-events: none;
+      background: radial-gradient(120% 90% at 85% -10%, rgba(91,84,232,.45), transparent 55%),
+                  radial-gradient(80% 60% at -10% 110%, rgba(91,84,232,.25), transparent 60%); }
+    .mcard.armed .mc-sheen::after { content: ''; position: absolute; inset: 0;
+      background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,.14) 50%, transparent 60%);
+      transform: translateX(-120%); animation: sweep 3.4s 1s ease-in-out infinite; }
+    .mc-top { display: flex; justify-content: space-between; align-items: center; }
+    .mc-brand { font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 13px; letter-spacing: .02em; }
+    .mc-kind { font-family: 'JetBrains Mono', monospace; font-size: 9px; letter-spacing: .14em; color: #B9BEE8;
+      border: 1px solid rgba(255,255,255,.25); border-radius: 4px; padding: 2px 6px; }
+    .mc-chip { width: 34px; height: 25px; border-radius: 5px; margin-top: 13px; position: relative;
+      background: linear-gradient(135deg, #D8C68A, #B49A55); }
+    .mc-chip::after { content: ''; position: absolute; inset: 4px; border: 1px solid rgba(0,0,0,.25); border-radius: 3px; }
+    .mc-num { font-family: 'JetBrains Mono', monospace; font-size: 16.5px; letter-spacing: .08em; margin-top: 12px; font-variant-numeric: tabular-nums; }
+    .mc-lock { font-family: 'JetBrains Mono', monospace; font-size: 9.5px; letter-spacing: .18em; color: #AEB4E4; margin-top: 6px; }
+    .mc-bot { margin-top: auto; display: flex; justify-content: space-between; font-family: 'JetBrains Mono', monospace; font-size: 10.5px; color: #C9CDF0; }
+    .mc-stamp { position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%,-50%) rotate(-14deg);
+      font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 25px; letter-spacing: .18em;
+      padding: 4px 14px; border: 3px double currentColor; border-radius: 6px; color: #FF8896;
+      animation: stamp .45s cubic-bezier(.2,1.6,.4,1); }
+    .mcard.spent { filter: grayscale(.75); }
+    .mcard.spent .mc-stamp { color: #8CE8C8; }
+    .mcard.revoked::before { content: ''; position: absolute; inset: 0; z-index: 1;
+      background: repeating-linear-gradient(-45deg, transparent 0 14px, rgba(178,58,72,.30) 14px 22px); }
+    .mcard.void { opacity: .6; filter: grayscale(.6); }
+    .mcard.unminted { opacity: .78; }
+    .mcard.unminted .mc-num { color: #7A81B5; }
+    @keyframes mint { from { transform: rotateY(70deg) translateX(-12px); opacity: 0; } }
+    @keyframes sweep { to { transform: translateX(220%); } }
+    @keyframes stamp { from { transform: translate(-50%,-50%) rotate(-14deg) scale(1.8); opacity: 0; } }
+
+    /* hold-to-approve: releasing money has weight */
+    .btn-hold { position: relative; overflow: hidden; user-select: none; -webkit-user-select: none; touch-action: none; }
+    .btn-hold .fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0%; background: rgba(91,84,232,.85); }
+    .btn-hold .lbl { position: relative; }
+    .rstat .exp { font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; }
+
     @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
     @keyframes openBody { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
     @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
@@ -345,13 +398,14 @@
     var st = stat(m.state);
     var simulated = m.prava.sessionId && String(m.prava.sessionId).indexOf('sim_') === 0;
     var pulse = isLive(m.state) ? ' pulse' : '';
+    var expChip = ((m.state==='PENDING_APPROVAL'||isLive(m.state)) && m.scope.expiresAt) ? ' <span class="time exp" data-exp="'+esc(m.scope.expiresAt)+'"></span>' : '';
     var inline = '';
     if(m.state === 'PENDING_APPROVAL'){
       var why = (m.policyReasons && m.policyReasons[0]) || 'Above the amount the agent may spend on its own.';
       inline = '<div class="approve-inline">'
         + '<div class="why">'+esc(why)+'</div>'
         + '<div class="approve-acts">'
-          + '<button class="btn btn-go" data-act="approve" data-id="'+m.id+'">Approve '+usd(m.amountCents)+'</button>'
+          + '<button class="btn btn-go btn-hold" data-act="approve" data-hold data-id="'+m.id+'" aria-label="Approve \u2014 press and hold, or press Enter"><span class="fill"></span><span class="lbl">Hold to approve '+usd(m.amountCents)+'</span></button>'
           + '<button class="btn btn-danger" data-act="decline" data-id="'+m.id+'">Reject</button>'
         + '</div></div>';
     }
@@ -361,7 +415,7 @@
         + '<div class="rmid"><div class="rmerchant">'+esc(m.scope.merchant||'—')+(simulated?'<span class="sim">sim</span>':'')+'</div>'
         + '<div class="rpurpose">'+esc(m.purpose||'—')+(m.seats?' · '+m.seats+' seats':'')+'</div></div>'
         + '<div class="rright"><div class="ramt">'+usd(m.amountCents)+'</div>'
-        + '<div class="rstat"><span class="dot'+pulse+'"></span><span class="word">'+esc(st.label)+'</span><span class="time">· '+timeAgo(m.updatedAt)+'</span></div></div>'
+        + '<div class="rstat"><span class="dot'+pulse+'"></span><span class="word">'+esc(st.label)+'</span><span class="time">· '+timeAgo(m.updatedAt)+'</span>'+expChip+'</div></div>'
       + '</div>'
       + inline
     + '</article>';
@@ -393,7 +447,7 @@
   function managerApproval(m){
     if(m.state === 'PENDING_APPROVAL'){
       return '<div class="manager"><h5>Your approval</h5><p>Approving issues a single-use card locked to '+esc(m.scope.merchant)+' for '+usd(m.amountCents)+', and nothing else.</p>'
-        + '<div class="approve-acts"><button class="btn btn-go" data-act="approve" data-id="'+m.id+'">Approve '+usd(m.amountCents)+'</button>'
+        + '<div class="approve-acts"><button class="btn btn-go btn-hold" data-act="approve" data-hold data-id="'+m.id+'" aria-label="Approve \u2014 press and hold, or press Enter"><span class="fill"></span><span class="lbl">Hold to approve '+usd(m.amountCents)+'</span></button>'
         + '<button class="btn btn-danger" data-act="decline" data-id="'+m.id+'">Reject</button></div></div>';
     }
     var actions = '';
@@ -407,6 +461,31 @@
       + '</div></div>';
   }
 
+  /* the credential as an object: minted, armed, spent, revoked */
+  function mcard(m){
+    var st = m.state;
+    var mode = st==='COMPLETED' ? 'spent'
+      : st==='REVOKED' ? 'revoked'
+      : (st==='EXPIRED'||st==='DECLINED'||st==='FAILED'||st==='REJECTED') ? 'void'
+      : (m.prava.cardLast4 ? 'armed' : 'unminted');
+    var stamp = mode==='spent' ? 'SPENT' : mode==='revoked' ? 'REVOKED'
+      : mode==='void' ? (st==='EXPIRED' ? 'EXPIRED' : 'VOID') : '';
+    var num = m.prava.cardLast4 ? '\u00b7\u00b7\u00b7\u00b7 \u00b7\u00b7\u00b7\u00b7 \u00b7\u00b7\u00b7\u00b7 '+esc(m.prava.cardLast4) : '\u00b7\u00b7\u00b7\u00b7 \u00b7\u00b7\u00b7\u00b7 \u00b7\u00b7\u00b7\u00b7 \u00b7\u00b7\u00b7\u00b7';
+    var live = mode==='armed' || st==='PENDING_APPROVAL';
+    var right = live && m.scope.expiresAt
+      ? '<span data-exp="'+esc(m.scope.expiresAt)+'"></span>'
+      : '<span>'+(mode==='spent' ? 'USED 1 OF 1' : mode==='unminted' ? 'NOT YET MINTED' : '\u2014')+'</span>';
+    return '<div class="mcard-wrap"><div class="mcard '+mode+'">'
+      + '<div class="mc-sheen"></div>'
+      + '<div class="mc-top"><span class="mc-brand">CardGuard</span><span class="mc-kind">SINGLE\u00a0USE</span></div>'
+      + '<div class="mc-chip"></div>'
+      + '<div class="mc-num">'+num+'</div>'
+      + '<div class="mc-lock">'+esc((m.scope.merchant||'UNASSIGNED').toUpperCase())+' \u00b7 ONLY</div>'
+      + '<div class="mc-bot"><span>CAP '+usd(m.scope.perTransactionCapCents||m.amountCents)+'</span>'+right+'</div>'
+      + (stamp ? '<div class="mc-stamp">'+stamp+'</div>' : '')
+      + '</div></div>';
+  }
+
   function credential(m){
     var spent = (m.outcome && m.outcome.amountCapturedCents) || 0;
     var cap = m.scope.totalCapCents || m.amountCents || 0;
@@ -415,6 +494,7 @@
     var pips=''; for(var i=0;i<Math.min(m.scope.maxUses,8);i++) pips += '<span class="pip'+(i<m.scope.usesConsumed?' spent':'')+'"></span>';
     var dead = isDead(m.state);
     return '<div class="sect"><h4>Credential details</h4><div class="sect-inner">'
+      + mcard(m)
       + '<div class="lock">Single-use card · <b>'+esc(m.scope.merchant)+'</b> only, nowhere else</div>'
       + '<div class="meter-row"><span>Spent against this card</span><b>'+usd(spent)+' of '+usd(cap)+'</b></div>'
       + '<div class="meter '+mcls+'"><i style="width:'+pct+'%"></i></div>'
@@ -630,7 +710,7 @@
 
   /* ==================== events (delegated, CSP-safe) ==================== */
   els.list.addEventListener('click', function(ev){
-    var actBtn = ev.target.closest('[data-act]'); if(actBtn){ ev.stopPropagation(); doAct(actBtn); return; }
+    var actBtn = ev.target.closest('[data-act]'); if(actBtn){ ev.stopPropagation(); if(actBtn.hasAttribute('data-hold') && ev.detail !== 0){ return; } doAct(actBtn); return; }
     var card = ev.target.closest('.row'); if(!card) return;
     // clicking anywhere else on the card opens the drawer
     openDrawer(card.getAttribute('data-id'));
@@ -643,7 +723,7 @@
   });
   els.dBody.addEventListener('click', function(ev){
     var probeBtn = ev.target.closest('[data-probe]'); if(probeBtn){ ev.stopPropagation(); doProbe(probeBtn); return; }
-    var actBtn = ev.target.closest('[data-act]'); if(actBtn){ ev.stopPropagation(); doAct(actBtn); return; }
+    var actBtn = ev.target.closest('[data-act]'); if(actBtn){ ev.stopPropagation(); if(actBtn.hasAttribute('data-hold') && ev.detail !== 0){ return; } doAct(actBtn); return; }
   });
   els.scrim.addEventListener('click', closeDrawer);
   document.addEventListener('keydown', function(ev){ if(ev.key==='Escape' && openId) closeDrawer(); });
@@ -679,6 +759,48 @@
     } catch(err){ fail(err.message+' — is the server running?'); }
   }
   async function boot(){ try { linqLive = (await api('/ready')).integrations.linq === true; } catch(e){} }
+
+
+  /* hold-to-approve: 900ms of intent before money is released.
+     Pointer users must hold; keyboard users (click with detail 0) act at once. */
+  var hold = { btn:null, t0:0, timer:null };
+  function holdStart(btn){
+    hold.btn = btn; hold.t0 = Date.now();
+    var fill = btn.querySelector('.fill');
+    hold.timer = setInterval(function(){
+      var p = Math.min(1, (Date.now()-hold.t0)/900);
+      if(fill) fill.style.width = (p*100)+'%';
+      if(p >= 1) holdEnd(true);
+    }, 30);
+  }
+  function holdEnd(fire){
+    var btn = hold.btn; if(!btn) return;
+    clearInterval(hold.timer); hold.btn = null;
+    var fill = btn.querySelector('.fill');
+    if(fire){ if(fill) fill.style.width='100%'; doAct(btn); }
+    else if(fill){ fill.style.width='0%'; }
+  }
+  document.addEventListener('pointerdown', function(ev){
+    var b = ev.target.closest('[data-hold]');
+    if(!b || b.disabled) return;
+    ev.preventDefault(); ev.stopPropagation();
+    holdStart(b);
+  });
+  document.addEventListener('pointerup', function(){ holdEnd(false); });
+  document.addEventListener('pointercancel', function(){ holdEnd(false); });
+
+  /* authority is time-boxed: every [data-exp] ticks down live */
+  function tickExp(){
+    var now = Date.now();
+    document.querySelectorAll('[data-exp]').forEach(function(el){
+      var t = new Date(el.getAttribute('data-exp')).getTime() - now;
+      if(isNaN(t)) return;
+      if(t <= 0){ el.textContent = '00:00'; return; }
+      var sTot = Math.floor(t/1000), mm = Math.floor(sTot/60), ss = sTot%60;
+      el.textContent = (mm<10?'0':'')+mm+':'+(ss<10?'0':'')+ss+' left';
+    });
+  }
+  setInterval(tickExp, 1000); tickExp();
 
   boot(); refresh(); setInterval(refresh, 3000);
 })();
