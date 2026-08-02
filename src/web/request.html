@@ -3,316 +3,699 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CardGuard — Request a Purchase</title>
-  <meta name="description" content="Submit a purchase request to your company's AI-powered spend management agent." />
+  <title>CardGuard — Request a purchase</title>
+  <meta name="description" content="Describe a purchase in plain language. The agent checks policy, gets approval if needed, and completes it." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;450;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" />
+  <link rel="stylesheet" href="/tokens.css" />
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    /*
+      Brief: an AI agent that spends company money under human control.
+      Reference points named in the brief — Gemini's conversational calm and
+      Stripe's enterprise restraint. So: one focal input, generous air, a quiet
+      near-white canvas, and exactly one accent doing real work.
+
+      Deliberately NOT any AI-generated default: no cream-and-terracotta, no
+      near-black-plus-acid, no broadsheet hairlines. The palette is a Stripe
+      lineage — deep ink navy, true white, a single trusted indigo — with amber
+      reserved strictly for spend limits, carried from tokens.css so the request
+      and ledger pages read as one product.
+
+      Type carries the personality: Space Grotesk (display, mechanical, precise,
+      used big and rarely) over Inter (body, boring on purpose), with JetBrains
+      Mono for anything financial. The mono is not decoration — an amount, an
+      authorization code, an expiry, a timestamp are read digit by digit, the
+      way a statement sets them.
+
+      The signature is the execution view: a live agent log that writes itself
+      out in real time, timestamped, beside a decisions ledger. All the boldness
+      is spent there. The request view stays almost empty so that landing hits.
+    */
+
     :root {
-      --visa-blue: #1434CB;
-      --visa-blue-light: #EEF1FD;
-      --visa-blue-dark: #0F27A0;
-      --bg: #F8FAFC;
-      --surface: #FFFFFF;
-      --border: #E2E8F0;
-      --border-light: #F1F5F9;
-      --text-primary: #0F172A;
-      --text-secondary: #475569;
-      --text-muted: #94A3B8;
-      --green: #10B981;
-      --green-bg: #ECFDF5;
-      --amber: #F59E0B;
-      --amber-bg: #FFFBEB;
-      --red: #EF4444;
-      --red-bg: #FEF2F2;
-      --radius: 12px;
-      --radius-sm: 8px;
-      --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
-      --shadow-md: 0 4px 16px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.04);
+      --ink:        #1A1F36;
+      --ink-2:      #4A5170;
+      --ink-3:      #6B7394;
+      --ink-4:      #9AA0BC;
+      --line:       #E6E8F0;
+      --line-soft:  #F0F1F6;
+      --canvas:     #FCFCFD;
+      --raise:      #FFFFFF;
+
+      --iris:       #5B54E8;
+      --iris-ink:   #4740C4;
+      --iris-wash:  #F1F0FE;
+      --iris-line:  #DEDCFB;
+
+      --limit:      #B4530A;   --limit-wash: #FBF0E6;
+      --go:         #0E7C66;   --go-wash:    #E7F3EF;
+      --stop:       #B23A48;   --stop-wash:  #FBECEE;
+
+      --r-lg: 20px; --r-md: 13px; --r-sm: 9px;
+      --shadow-input: 0 1px 2px rgba(26,31,54,.04), 0 12px 32px -12px rgba(26,31,54,.16);
+      --shadow-soft:  0 1px 2px rgba(26,31,54,.04), 0 4px 16px -8px rgba(26,31,54,.12);
     }
-    body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--text-primary); min-height: 100vh; display: flex; flex-direction: column; }
-    header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 32px; height: 64px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
-    .logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
-    .logo-icon { width: 36px; height: 36px; background: var(--visa-blue); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-size: 18px; }
-    .logo-text { font-size: 16px; font-weight: 700; color: var(--text-primary); }
-    .logo-sub { font-size: 11px; color: var(--text-muted); font-weight: 400; }
-    .header-nav { display: flex; align-items: center; gap: 8px; }
-    .nav-link { font-size: 13px; color: var(--text-secondary); text-decoration: none; padding: 6px 12px; border-radius: var(--radius-sm); transition: background 0.15s; }
-    .nav-link:hover { background: var(--bg); }
-    .nav-link.active { color: var(--visa-blue); background: var(--visa-blue-light); font-weight: 500; }
-    main { flex: 1; max-width: 680px; width: 100%; margin: 0 auto; padding: 48px 24px 120px; }
-    .page-hero { text-align: center; margin-bottom: 36px; }
-    .page-hero h1 { font-size: 28px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px; }
-    .page-hero p { font-size: 15px; color: var(--text-secondary); line-height: 1.6; }
-    .policy-chips { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
-    .policy-chip { font-size: 12px; color: var(--text-secondary); background: var(--surface); border: 1px solid var(--border); padding: 4px 10px; border-radius: 20px; }
-    .policy-chip b { color: var(--visa-blue); }
-    .input-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-md); overflow: hidden; margin-bottom: 24px; }
-    .input-area { padding: 20px 20px 12px; }
-    textarea { width: 100%; min-height: 80px; border: none; outline: none; resize: none; font-family: inherit; font-size: 15px; color: var(--text-primary); line-height: 1.6; background: transparent; }
-    textarea::placeholder { color: var(--text-muted); }
-    .input-footer { padding: 10px 16px; border-top: 1px solid var(--border-light); display: flex; align-items: center; justify-content: space-between; }
-    .input-hint { font-size: 12px; color: var(--text-muted); }
-    .send-btn { background: var(--visa-blue); color: white; border: none; border-radius: var(--radius-sm); padding: 9px 20px; font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer; transition: background 0.15s, transform 0.1s; display: flex; align-items: center; gap: 6px; }
-    .send-btn:hover { background: var(--visa-blue-dark); }
-    .send-btn:active { transform: scale(0.98); }
-    .send-btn:disabled { background: var(--border); color: var(--text-muted); cursor: not-allowed; transform: none; }
-    .quick-section { margin-bottom: 32px; }
-    .quick-label { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; }
-    .quick-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-    .quick-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s; text-align: left; }
-    .quick-card:hover { border-color: var(--visa-blue); box-shadow: 0 0 0 3px var(--visa-blue-light); }
-    .quick-card-label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
-    .quick-card-text { font-size: 13px; color: var(--text-secondary); line-height: 1.4; }
-    .quick-card-tag { display: inline-block; margin-top: 6px; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 20px; }
-    .tag-auto { background: var(--green-bg); color: var(--green); }
-    .tag-approval { background: var(--amber-bg); color: var(--amber); }
-    .tag-blocked { background: var(--red-bg); color: var(--red); }
-    #status-section { display: none; }
-    #status-section.visible { display: block; }
-    .status-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
-    .status-header { padding: 20px 24px; border-bottom: 1px solid var(--border-light); display: flex; align-items: center; gap: 14px; }
-    .st-avatar { width: 44px; height: 44px; border-radius: 10px; background: var(--visa-blue-light); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
-    .st-merchant-name { font-size: 16px; font-weight: 600; }
-    .st-purpose { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
-    .st-amount { margin-left: auto; font-size: 22px; font-weight: 700; color: var(--text-primary); }
-    .timeline { padding: 24px 24px 8px; }
-    .tl-item { display: flex; align-items: flex-start; gap: 14px; padding-bottom: 22px; position: relative; }
-    .tl-item:last-child { padding-bottom: 0; }
-    .tl-item:not(:last-child)::before { content: ''; position: absolute; left: 15px; top: 32px; bottom: 0; width: 2px; background: var(--border); }
-    .tl-item.done:not(:last-child)::before { background: var(--green); }
-    .tl-item.active:not(:last-child)::before { background: linear-gradient(to bottom, var(--amber), var(--border)); }
-    .tl-dot { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 13px; z-index: 1; border: 2px solid var(--border); background: var(--surface); color: var(--text-muted); }
-    .tl-item.done .tl-dot { background: var(--green); border-color: var(--green); color: white; }
-    .tl-item.active .tl-dot { background: var(--amber-bg); border-color: var(--amber); color: var(--amber); animation: pulse-dot 1.5s ease-in-out infinite; }
-    .tl-item.error .tl-dot { background: var(--red-bg); border-color: var(--red); color: var(--red); }
-    @keyframes pulse-dot { 0%, 100% { box-shadow: 0 0 0 0 rgba(245,158,11,0.4); } 50% { box-shadow: 0 0 0 6px rgba(245,158,11,0); } }
-    .tl-content { flex: 1; padding-top: 5px; }
-    .tl-title { font-size: 14px; font-weight: 600; color: var(--text-primary); }
-    .tl-desc { font-size: 13px; color: var(--text-secondary); margin-top: 2px; line-height: 1.5; }
-    .result-banner { margin: 0 24px 20px; padding: 14px 18px; border-radius: var(--radius-sm); font-size: 14px; font-weight: 500; display: none; align-items: center; gap: 10px; line-height: 1.5; }
-    .result-banner.show { display: flex; }
-    .result-banner.approved { background: var(--green-bg); color: #065F46; border: 1px solid #A7F3D0; }
-    .result-banner.pending { background: var(--amber-bg); color: #92400E; border: 1px solid #FDE68A; }
-    .result-banner.rejected { background: var(--red-bg); color: #991B1B; border: 1px solid #FECACA; }
-    #error-bar { background: var(--red-bg); color: var(--red); border: 1px solid #FECACA; border-radius: var(--radius-sm); padding: 12px 16px; font-size: 13px; margin-bottom: 16px; display: none; }
-    #error-bar.show { display: block; }
-    .new-req-btn { background: transparent; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 16px; font-size: 13px; font-weight: 500; font-family: inherit; color: var(--text-secondary); cursor: pointer; transition: all 0.15s; margin: 20px 24px 24px; display: block; }
-    .new-req-btn:hover { border-color: var(--visa-blue); color: var(--visa-blue); }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: var(--canvas); color: var(--ink);
+      line-height: 1.55; -webkit-font-smoothing: antialiased;
+      min-height: 100vh; display: flex; flex-direction: column;
+    }
+    ::selection { background: var(--iris-wash); }
+
+    header {
+      height: 60px; padding: 0 28px;
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid var(--line-soft);
+    }
+    .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: inherit; }
+    .brand-mark {
+      width: 26px; height: 26px; border-radius: 7px;
+      background: var(--ink); color: #fff;
+      display: grid; place-items: center;
+      font-family: 'Space Grotesk', sans-serif; font-weight: 700; font-size: 14px;
+    }
+    .brand-name { font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 15px; letter-spacing: -.01em; }
+    .nav { display: flex; gap: 4px; }
+    .nav a {
+      font-size: 13px; font-weight: 450; color: var(--ink-3);
+      text-decoration: none; padding: 6px 12px; border-radius: 7px;
+      transition: color .15s, background .15s;
+    }
+    .nav a:hover { color: var(--ink); background: var(--line-soft); }
+    .nav a.here { color: var(--iris-ink); background: var(--iris-wash); font-weight: 500; }
+
+    main { flex: 1; width: 100%; }
+
+    /* ===================== VIEW 1 — ask ===================== */
+    .ask {
+      max-width: 680px; margin: 0 auto;
+      padding: clamp(48px, 12vh, 128px) 24px 80px;
+      display: flex; flex-direction: column; align-items: center; text-align: center;
+    }
+    .ask.gone { display: none; }
+
+    .prompt-eyebrow {
+      font-size: 12px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase;
+      color: var(--iris); margin-bottom: 18px;
+      opacity: 0; animation: rise .6s .05s ease forwards;
+    }
+    .ask h1 {
+      font-family: 'Space Grotesk', sans-serif; font-weight: 500;
+      font-size: clamp(30px, 5.4vw, 46px); line-height: 1.08; letter-spacing: -.03em;
+      color: var(--ink); max-width: 15ch; margin-bottom: 40px;
+      opacity: 0; animation: rise .6s .12s ease forwards;
+    }
+    .ask h1 em { font-style: normal; color: var(--ink-4); }
+
+    .composer {
+      width: 100%; background: var(--raise);
+      border: 1px solid var(--line); border-radius: var(--r-lg);
+      box-shadow: var(--shadow-input);
+      padding: 6px 6px 6px 20px;
+      display: flex; align-items: flex-end; gap: 12px;
+      transition: border-color .2s, box-shadow .2s;
+      opacity: 0; animation: rise .6s .2s ease forwards;
+    }
+    .composer:focus-within {
+      border-color: var(--iris-line);
+      box-shadow: 0 1px 2px rgba(26,31,54,.04), 0 0 0 4px var(--iris-wash), 0 16px 40px -14px rgba(91,84,232,.28);
+    }
+    .composer textarea {
+      flex: 1; border: 0; outline: 0; resize: none; background: transparent;
+      font-family: inherit; font-size: 17px; line-height: 1.5; color: var(--ink);
+      padding: 14px 0; max-height: 200px;
+    }
+    .composer textarea::placeholder { color: var(--ink-4); }
+    .send {
+      flex-shrink: 0; width: 44px; height: 44px; border-radius: 13px;
+      border: 0; cursor: pointer; background: var(--ink); color: #fff;
+      display: grid; place-items: center;
+      transition: background .15s, transform .1s;
+    }
+    .send:hover:not(:disabled) { background: var(--iris-ink); }
+    .send:active:not(:disabled) { transform: scale(.94); }
+    .send:disabled { background: var(--line); color: var(--ink-4); cursor: default; }
+    .send svg { width: 19px; height: 19px; }
+
+    .chips {
+      display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 20px;
+      opacity: 0; animation: rise .6s .3s ease forwards;
+    }
+    .chip {
+      font-family: inherit; font-size: 13.5px; font-weight: 450; color: var(--ink-2);
+      background: var(--raise); border: 1px solid var(--line);
+      border-radius: 20px; padding: 8px 15px; cursor: pointer;
+      transition: border-color .15s, color .15s, background .15s, transform .1s;
+      display: inline-flex; align-items: center; gap: 7px;
+    }
+    .chip:hover { border-color: var(--iris-line); color: var(--iris-ink); background: var(--iris-wash); }
+    .chip:active { transform: translateY(1px); }
+    .chip .tick { width: 5px; height: 5px; border-radius: 50%; background: var(--ink-4); }
+    .chip[data-signal="auto"] .tick { background: var(--go); }
+    .chip[data-signal="appr"] .tick { background: var(--limit); }
+    .chip[data-signal="stop"] .tick { background: var(--stop); }
+
+    .policy {
+      margin-top: 40px; width: 100%;
+      opacity: 0; animation: rise .6s .38s ease forwards;
+    }
+    .policy summary {
+      list-style: none; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 7px;
+      font-size: 13px; color: var(--ink-3);
+      padding: 6px 4px; border-radius: 7px; transition: color .15s;
+    }
+    .policy summary::-webkit-details-marker { display: none; }
+    .policy summary:hover { color: var(--ink); }
+    .policy summary .caret { transition: transform .2s; font-size: 10px; color: var(--ink-4); }
+    .policy[open] summary .caret { transform: rotate(90deg); }
+    .policy-body {
+      display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 14px;
+      animation: rise .3s ease;
+    }
+    .rule { font-size: 12.5px; color: var(--ink-2); background: var(--line-soft); border-radius: 7px; padding: 5px 11px; }
+    .rule b { font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--ink); font-size: 12px; }
+
+    .banner-error {
+      width: 100%; margin-top: 20px;
+      background: var(--stop-wash); border: 1px solid #F1D3D7; color: #8A2733;
+      border-radius: var(--r-md); padding: 13px 16px; font-size: 13.5px; text-align: left;
+      display: none;
+    }
+    .banner-error.show { display: block; }
+
+    /* ===================== VIEW 2 — execute ===================== */
+    .run { display: none; }
+    .run.live { display: block; }
+    .run-wrap {
+      max-width: 940px; margin: 0 auto; padding: 44px 24px 100px;
+      display: grid; grid-template-columns: 1fr 320px; gap: 48px; align-items: start;
+    }
+
+    .run-head { margin-bottom: 30px; }
+    .run-kicker {
+      display: flex; align-items: center; gap: 9px;
+      font-size: 12px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase;
+      color: var(--iris); margin-bottom: 12px;
+    }
+    .run-kicker .live-dot {
+      width: 7px; height: 7px; border-radius: 50%; background: var(--iris);
+      box-shadow: 0 0 0 0 rgba(91,84,232,.5); animation: ping 1.6s ease-out infinite;
+    }
+    .run-kicker.done .live-dot { background: var(--go); animation: none; box-shadow: none; }
+    .run-kicker.stopped .live-dot { background: var(--stop); animation: none; box-shadow: none; }
+    .run-said {
+      font-family: 'Space Grotesk', sans-serif; font-weight: 500;
+      font-size: clamp(20px, 3vw, 27px); line-height: 1.25; letter-spacing: -.02em;
+      color: var(--ink); max-width: 24ch;
+    }
+    .run-meta {
+      display: flex; gap: 22px; margin-top: 16px;
+      font-family: 'JetBrains Mono', monospace; font-size: 12.5px; color: var(--ink-3);
+    }
+    .run-meta b { color: var(--ink); font-weight: 500; }
+    .run-meta .amt { color: var(--ink); font-weight: 600; font-size: 14px; }
+
+    .log { position: relative; padding-left: 4px; }
+    .log-line {
+      display: grid; grid-template-columns: 74px 22px 1fr; gap: 12px; align-items: start;
+      padding: 0 0 4px;
+      opacity: 0; transform: translateY(4px); animation: logIn .32s ease forwards;
+    }
+    .log-line .ts {
+      font-family: 'JetBrains Mono', monospace; font-size: 11.5px; color: var(--ink-4);
+      padding-top: 3px; text-align: right; font-variant-numeric: tabular-nums;
+    }
+    .rail { display: flex; flex-direction: column; align-items: center; align-self: stretch; }
+    .node {
+      width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0; margin-top: 2px;
+      display: grid; place-items: center;
+      border: 1.5px solid var(--line); background: var(--raise);
+      font-size: 9px; color: var(--ink-4); transition: all .3s ease;
+    }
+    .thread { width: 1.5px; flex: 1; background: var(--line); margin: 3px 0; min-height: 14px; }
+    .log-line:last-child .thread { display: none; }
+    .log-line.done .node { background: var(--go); border-color: var(--go); color: #fff; }
+    .log-line.done .thread { background: var(--go); }
+    .log-line.active .node {
+      border-color: var(--iris); color: var(--iris); background: var(--iris-wash);
+      animation: nodePulse 1.4s ease-in-out infinite;
+    }
+    .log-line.error .node { background: var(--stop); border-color: var(--stop); color: #fff; }
+    .log-line.error .thread { background: var(--stop); }
+
+    .body { padding-bottom: 20px; min-width: 0; }
+    .log-title {
+      font-size: 14.5px; font-weight: 550; color: var(--ink); letter-spacing: -.01em;
+      display: flex; align-items: center; gap: 9px;
+    }
+    .log-line.pending .log-title { color: var(--ink-4); }
+    .log-line.active .log-title::after {
+      content: ''; width: 6px; height: 13px; background: var(--iris); display: inline-block;
+      animation: caret 1s step-end infinite; border-radius: 1px;
+    }
+    .log-detail {
+      font-size: 13px; color: var(--ink-2); line-height: 1.5;
+      max-height: 0; overflow: hidden; opacity: 0;
+      transition: max-height .3s ease, opacity .25s ease, margin .3s ease;
+    }
+    .log-line.show-detail .log-detail { max-height: 140px; opacity: 1; margin-top: 5px; }
+    .disclose {
+      font-family: inherit; font-size: 12px; color: var(--ink-3); font-weight: 500;
+      background: 0; border: 0; cursor: pointer; padding: 2px 0; margin-top: 4px;
+      display: inline-flex; align-items: center; gap: 5px; transition: color .15s;
+    }
+    .disclose:hover { color: var(--iris-ink); }
+    .disclose .caret { font-size: 9px; transition: transform .2s; }
+    .log-line.show-detail .disclose .caret { transform: rotate(90deg); }
+    .log-line.pending .disclose { display: none; }
+
+    .outcome { margin-top: 8px; opacity: 0; animation: rise .5s ease forwards; }
+    .outcome-card { border-radius: var(--r-md); padding: 22px 24px; border: 1px solid; position: relative; overflow: hidden; }
+    .outcome-card.win  { background: var(--go-wash);   border-color: #BFE0D6; }
+    .outcome-card.stop { background: var(--stop-wash); border-color: #F1D3D7; }
+    .outcome-flag {
+      display: inline-flex; align-items: center; gap: 8px;
+      font-size: 12px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; margin-bottom: 14px;
+    }
+    .outcome-card.win  .outcome-flag { color: var(--go); }
+    .outcome-card.stop .outcome-flag { color: var(--stop); }
+    .outcome-flag .ic { width: 16px; height: 16px; display: grid; place-items: center; border-radius: 50%; color: #fff; font-size: 10px; }
+    .outcome-card.win  .outcome-flag .ic { background: var(--go); }
+    .outcome-card.stop .outcome-flag .ic { background: var(--stop); }
+    .outcome-line {
+      font-family: 'Space Grotesk', sans-serif; font-weight: 500; font-size: 21px;
+      letter-spacing: -.02em; color: var(--ink); line-height: 1.3;
+    }
+    .outcome-line .m { color: var(--ink-2); }
+    .outcome-grid {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 1px; margin-top: 20px; background: rgba(26,31,54,.07);
+      border-radius: var(--r-sm); overflow: hidden;
+    }
+    .oc { background: rgba(255,255,255,.6); padding: 12px 14px; }
+    .oc dt { font-size: 10.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 4px; }
+    .oc dd { font-family: 'JetBrains Mono', monospace; font-size: 13.5px; color: var(--ink); font-variant-numeric: tabular-nums; }
+    .lifecycle {
+      display: flex; align-items: center; gap: 7px; margin-top: 16px;
+      font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--ink-3); flex-wrap: wrap;
+    }
+    .lifecycle .seg { display: inline-flex; align-items: center; gap: 6px; }
+    .lifecycle .seg b { color: var(--ink); font-weight: 600; }
+    .lifecycle .arrow { color: var(--ink-4); }
+    .lifecycle .kill { color: var(--stop); }
+
+    .decisions {
+      position: sticky; top: 28px;
+      background: var(--raise); border: 1px solid var(--line);
+      border-radius: var(--r-md); box-shadow: var(--shadow-soft); overflow: hidden;
+    }
+    .decisions-head {
+      padding: 15px 18px; border-bottom: 1px solid var(--line-soft);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .decisions-head h3 { font-family: 'Space Grotesk', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: .02em; color: var(--ink); }
+    .decisions-head .glyph { color: var(--iris); font-size: 14px; }
+    .decisions-body { padding: 6px 0; }
+    .dec { padding: 11px 18px; border-bottom: 1px solid var(--line-soft); opacity: 0; animation: rise .4s ease forwards; }
+    .dec:last-child { border-bottom: 0; }
+    .dec dt { font-size: 10.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 4px; }
+    .dec dd { font-size: 13.5px; color: var(--ink); line-height: 1.45; word-break: break-word; }
+    .dec dd.mono { font-family: 'JetBrains Mono', monospace; font-size: 12.5px; }
+    .verdict { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 13px; padding: 3px 9px; border-radius: 6px; }
+    .verdict.auto { background: var(--go-wash); color: var(--go); }
+    .verdict.appr { background: var(--limit-wash); color: var(--limit); }
+    .verdict.stop { background: var(--stop-wash); color: var(--stop); }
+    .risk { display: flex; align-items: center; gap: 8px; }
+    .risk-bar { flex: 1; height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; }
+    .risk-bar > i { display: block; height: 100%; border-radius: 3px; transition: width .5s ease; }
+    .risk-bar.low  > i { background: var(--go); }
+    .risk-bar.med  > i { background: var(--limit); }
+    .risk-bar.high > i { background: var(--stop); }
+    .risk-label { font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 600; }
+    .risk.low  .risk-label { color: var(--go); }
+    .risk.med  .risk-label { color: var(--limit); }
+    .risk.high .risk-label { color: var(--stop); }
+
+    .reset {
+      margin-top: 26px;
+      font-family: inherit; font-size: 13.5px; font-weight: 500; color: var(--ink-2);
+      background: 0; border: 1px solid var(--line); border-radius: var(--r-sm);
+      padding: 9px 16px; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 7px;
+      transition: border-color .15s, color .15s;
+    }
+    .reset:hover { border-color: var(--iris-line); color: var(--iris-ink); }
+
+    @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+    @keyframes logIn { to { opacity: 1; transform: none; } }
+    @keyframes ping { 0% { box-shadow: 0 0 0 0 rgba(91,84,232,.5); } 70%,100% { box-shadow: 0 0 0 7px rgba(91,84,232,0); } }
+    @keyframes nodePulse { 0%,100% { box-shadow: 0 0 0 0 rgba(91,84,232,.35); } 50% { box-shadow: 0 0 0 5px rgba(91,84,232,0); } }
+    @keyframes caret { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; vertical-align: middle; }
+    .spin { width: 15px; height: 15px; border: 2px solid rgba(255,255,255,.35); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; }
+
+    @media (max-width: 820px) {
+      .run-wrap { grid-template-columns: 1fr; gap: 32px; }
+      .decisions { position: static; }
+    }
+    @media (max-width: 520px) {
+      header { padding: 0 18px; }
+      .ask { padding-top: 56px; }
+      .log-line { grid-template-columns: 58px 20px 1fr; gap: 9px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+      .ask h1, .composer, .chips, .policy, .prompt-eyebrow { opacity: 1; }
+    }
   </style>
 </head>
 <body>
 <header>
-  <a href="/request" class="logo">
-    <div class="logo-icon">🛡️</div>
-    <div>
-      <div class="logo-text">CardGuard</div>
-      <div class="logo-sub">Agentic Commerce</div>
-    </div>
+  <a href="/request" class="brand">
+    <span class="brand-mark">C</span>
+    <span class="brand-name">CardGuard</span>
   </a>
-  <nav class="header-nav">
-    <a href="/request" class="nav-link active">Request Purchase</a>
-    <a href="/dashboard" class="nav-link">Admin Ledger</a>
+  <nav class="nav">
+    <a href="/request" class="here">Request</a>
+    <a href="/dashboard">Ledger</a>
   </nav>
 </header>
 
 <main>
-  <div class="page-hero">
-    <h1>What do you need to buy?</h1>
-    <p>Describe your purchase in plain English. The AI agent checks company policy,<br>gets approval if needed, and completes the purchase automatically.</p>
-    <div class="policy-chips">
-      <span class="policy-chip">Auto-approve under <b>$25</b></span>
-      <span class="policy-chip">Passkey approval <b>$25–$100</b></span>
-      <span class="policy-chip">Monthly budget <b>$500/person</b></span>
-      <span class="policy-chip">Policy <b>2026.08.01</b></span>
-    </div>
-  </div>
+  <section class="ask" id="ask">
+    <span class="prompt-eyebrow">Purchasing agent</span>
+    <h1>What do you need <em>to buy?</em></h1>
 
-  <div id="error-bar"></div>
-
-  <div class="input-card" id="compose-card">
-    <div class="input-area">
-      <textarea id="msg" placeholder='e.g. "Need $45 for Figma Professional monthly for 2 designers"' rows="3"></textarea>
-    </div>
-    <div class="input-footer">
-      <span class="input-hint">💡 Be specific about merchant, amount and purpose</span>
-      <button class="send-btn" id="send-btn" onclick="sendRequest()">
-        <span id="send-label">Send Request</span>
-        <span id="send-spinner" style="display:none"><span class="spinner"></span></span>
+    <div class="composer">
+      <textarea id="msg" rows="1" placeholder="Describe it in a sentence — e.g. Figma for 2 designers, $45 a month" aria-label="Purchase request"></textarea>
+      <button class="send" id="send-btn" data-action="send" aria-label="Send request">
+        <span id="send-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </span>
       </button>
     </div>
-  </div>
 
-  <div class="quick-section" id="quick-examples">
-    <div class="quick-label">Quick Examples</div>
-    <div class="quick-grid">
-      <div class="quick-card" onclick="fill('Need $15 for OpenAI API credits for backend testing')">
-        <div class="quick-card-label">Auto-Approved</div>
-        <div class="quick-card-text">$15 OpenAI API credits for backend testing</div>
-        <span class="quick-card-tag tag-auto">⚡ Instant</span>
-      </div>
-      <div class="quick-card" onclick="fill('Buy $45 Figma Professional monthly subscription for design team')">
-        <div class="quick-card-label">Needs Approval</div>
-        <div class="quick-card-text">$45 Figma Professional monthly for design team</div>
-        <span class="quick-card-tag tag-approval">🔑 Passkey</span>
-      </div>
-      <div class="quick-card" onclick="fill('Top up $20 Vercel Pro for deployment')">
-        <div class="quick-card-label">Auto-Approved</div>
-        <div class="quick-card-text">$20 Vercel Pro deployment</div>
-        <span class="quick-card-tag tag-auto">⚡ Instant</span>
-      </div>
-      <div class="quick-card" onclick="fill('Expense $150 JetBrains All Products Pack')">
-        <div class="quick-card-label">Will Be Blocked</div>
-        <div class="quick-card-text">$150 JetBrains — over $100 hard ceiling</div>
-        <span class="quick-card-tag tag-blocked">✕ Rejected</span>
-      </div>
+    <div class="chips" id="chips">
+      <button class="chip" data-signal="auto" data-fill="Top up OpenAI API credits by $20 for backend testing"><span class="tick"></span>OpenAI credits, $20</button>
+      <button class="chip" data-signal="appr" data-fill="Figma Professional monthly for 2 designers, $45"><span class="tick"></span>Figma for the design team</button>
+      <button class="chip" data-signal="auto" data-fill="Vercel Pro top-up, $20 for deployment"><span class="tick"></span>Vercel Pro, $20</button>
+      <button class="chip" data-signal="stop" data-fill="JetBrains All Products pack, $150"><span class="tick"></span>JetBrains pack, $150</button>
     </div>
-  </div>
 
-  <div id="status-section">
-    <div class="status-card">
-      <div class="status-header">
-        <div class="st-avatar" id="st-avatar">🏪</div>
-        <div>
-          <div class="st-merchant-name" id="st-merchant">—</div>
-          <div class="st-purpose" id="st-purpose">Processing your request…</div>
+    <details class="policy" id="policy">
+      <summary><span class="caret">▶</span><span>What the agent is allowed to do</span></summary>
+      <div class="policy-body" id="policy-body"><span class="rule">Loading policy…</span></div>
+    </details>
+
+    <div class="banner-error" id="error"></div>
+  </section>
+
+  <section class="run" id="run">
+    <div class="run-wrap">
+      <div class="run-main">
+        <div class="run-head">
+          <div class="run-kicker" id="kicker"><span class="live-dot"></span><span id="kicker-text">Agent running</span></div>
+          <div class="run-said" id="said">—</div>
+          <div class="run-meta" id="meta"></div>
         </div>
-        <div class="st-amount" id="st-amount"></div>
+
+        <div class="log" id="log"></div>
+        <div id="outcome"></div>
+
+        <button class="reset" data-action="new">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          New request
+        </button>
       </div>
-      <div class="result-banner" id="result-banner"></div>
-      <div class="timeline" id="timeline"></div>
-      <button class="new-req-btn" onclick="newRequest()">+ New Request</button>
+
+      <aside class="decisions" id="decisions" aria-label="Agent decisions">
+        <div class="decisions-head"><span class="glyph">◈</span><h3>Agent decisions</h3></div>
+        <div class="decisions-body" id="decisions-body"></div>
+      </aside>
     </div>
-  </div>
+  </section>
 </main>
 
 <script>
 (function(){
-  var ME = {openai:'🤖',figma:'🎨',github:'🐙',vercel:'▲',notion:'📓',slack:'💬',aws:'☁️',cloudflare:'🔶',linear:'📐',anthropic:'🧠',datadog:'🐕',sentry:'🔍',stripe:'💳',browserbase:'🌐'};
-  function esc(s){var d=document.createElement('div');d.textContent=String(s||'');return d.innerHTML;}
-  function usd(c){return '$'+(c/100).toFixed(2);}
-  function emoji(name){var n=(name||'').toLowerCase();for(var k in ME){if(n.includes(k))return ME[k];}return '🏪';}
+  'use strict';
 
-  window.fill=function(t){document.getElementById('msg').value=t;document.getElementById('msg').focus();};
+  /* Two response shapes, one normalized object.
+       POST /api/simulate/message -> flat projection (merchant top-level)
+       GET  /api/mandates/:id     -> full mandate (merchant at scope.merchant)
+     Reading scope.merchant on the projection is what crashed the old page. */
+  function norm(m){
+    if(!m) return null;
+    var scope = m.scope || {}, prava = m.prava || {}, outcome = m.outcome || {};
+    return {
+      id: m.id,
+      state: m.state || 'DRAFT',
+      merchant: scope.merchant || m.merchant || '',
+      amountCents: typeof m.amountCents === 'number' ? m.amountCents : 0,
+      purpose: m.purpose || '',
+      category: (scope.category || m.category || '').replace(/_/g,' '),
+      recurrence: (scope.recurrence || m.recurrence || 'one_time').replace(/_/g,' '),
+      seats: m.seats || scope.seats || null,
+      policyDecision: m.policyDecision || '',
+      policyReasons: m.policyReasons || [],
+      capCents: scope.perTransactionCapCents || 0,
+      cardLast4: prava.cardLast4 || '',
+      reportedStatus: prava.reportedStatus || '',
+      visaConfirmation: prava.visaConfirmation || '',
+      gatewayMessage: outcome.gatewayMessage || '',
+      authorizedBy: m.authorizedBy || ''
+    };
+  }
 
-  function setErr(msg){var e=document.getElementById('error-bar');if(msg){e.textContent=msg;e.classList.add('show');}else{e.textContent='';e.classList.remove('show');}}
+  var $ = function(id){ return document.getElementById(id); };
+  var esc = function(s){ var d = document.createElement('div'); d.textContent = String(s==null?'':s); return d.innerHTML; };
+  var usd = function(c){ return '$' + (Math.trunc(Math.abs(c||0))/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2}); };
+  var clock = function(){ return new Date().toTimeString().slice(0,8); };
 
-  var pollTimer=null;
-
-  var ALL_STEPS=[
-    {id:'received',  label:'Request Received',   desc:'AI understood your purchase intent',          icon:'🤖'},
-    {id:'policy',    label:'Policy Checked',      desc:'Spending rules and limits verified',          icon:'📋'},
-    {id:'approval',  label:'Finance Approval',    desc:'Passkey confirmation from approver',          icon:'🔑'},
-    {id:'card',      label:'Virtual Card Issued', desc:'Single-use Visa credential minted by Prava',  icon:'💳'},
-    {id:'checkout',  label:'Checkout Completed',  desc:'Browser agent purchased on your behalf',      icon:'✅'},
+  var STEPS = [
+    { id:'received', title:'Request received', hint:'Parsed the message into a structured purchase intent.' },
+    { id:'policy',   title:'Policy evaluated', hint:'Checked amount, merchant, category and monthly budget against company rules.' },
+    { id:'approval', title:'Approval',         hint:'A human confirms with a passkey before any credential is issued.' },
+    { id:'card',     title:'Credential issued', hint:'Prava minted a single-use card locked to this one merchant and amount.' },
+    { id:'checkout', title:'Checkout',         hint:'The browser agent completed checkout and reported the result to the card network.' }
   ];
+  var REACH = { DRAFT:1, PENDING_APPROVAL:3, AUTHORIZED:4, PROVISIONED:4, EXECUTING:5, COMPLETED:6, DECLINED:5, FAILED:5, REJECTED:-1, REVOKED:-1, EXPIRED:-1 };
+  var TERMINAL = ['COMPLETED','DECLINED','FAILED','REJECTED','REVOKED','EXPIRED'];
+  var HALTED_EARLY = ['REJECTED','REVOKED','EXPIRED'];
+  var isTerminal = function(s){ return TERMINAL.indexOf(s) !== -1; };
 
-  var STATE_REACH={DRAFT:1,PENDING_APPROVAL:3,AUTHORIZED:4,PROVISIONED:4,EXECUTING:5,COMPLETED:6,REJECTED:-1,REVOKED:-1};
+  var startedAt = 0, pollTimer = null, pollStart = 0, seenTs = {};
+  var POLL_MS = 1600, POLL_CAP = 5*60*1000;
 
-  function buildSteps(mandate){
-    var steps=ALL_STEPS.slice();
-    if(mandate&&mandate.policyDecision==='auto_approve') steps.splice(2,1);
-    var state=mandate?mandate.state:'DRAFT';
-    var reached=STATE_REACH[state]||1;
-    var dead=state==='REJECTED'||state==='REVOKED';
-    return steps.map(function(s,i){
-      var pos=i+1;
-      var status='waiting';
-      if(dead&&pos<=2) status='done';
-      else if(dead&&pos===3) status='error';
-      else if(pos<reached) status='done';
-      else if(pos===reached) status='active';
-      return {label:s.label,desc:s.desc,icon:s.icon,status:status};
+  /* ---------- VIEW 1 ---------- */
+  window.fill = function(t){ var m = $('msg'); m.value = t; autosize(m); m.focus(); };
+  function autosize(el){ el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,200)+'px'; }
+  function setErr(msg){ var e = $('error'); if(msg){ e.textContent = msg; e.classList.add('show'); } else { e.textContent=''; e.classList.remove('show'); } }
+
+  function loadPolicy(){
+    fetch('/api/policy').then(function(r){ return r.json(); }).then(function(p){
+      $('policy-body').innerHTML = [
+        'Buys on its own under <b>'+usd(p.autoApproveCents)+'</b>',
+        'Passkey from <b>'+usd(p.autoApproveCents)+'</b> to <b>'+usd(p.hardCeilingCents)+'</b>',
+        'Never above <b>'+usd(p.hardCeilingCents)+'</b>',
+        '<b>'+usd(p.monthlyBudgetPerRequesterCents)+'</b> per person each month'
+      ].map(function(r){ return '<span class="rule">'+r+'</span>'; }).join('');
+    }).catch(function(){ $('policy-body').innerHTML = '<span class="rule">Policy unavailable right now.</span>'; });
+  }
+
+  /* ---------- VIEW 2 ---------- */
+  function toRun(){ $('ask').classList.add('gone'); $('run').classList.add('live'); window.scrollTo(0,0); }
+  function toAsk(){ stopPoll(); $('run').classList.remove('live'); $('ask').classList.remove('gone'); $('msg').value=''; autosize($('msg')); $('msg').focus(); setErr(''); resetSend(); }
+  function resetSend(){ $('send-btn').disabled = false; $('send-icon').innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>'; }
+
+  function stepStatus(state, pos){
+    var reached = REACH[state] || 1;
+    if(HALTED_EARLY.indexOf(state) !== -1){ if(pos <= 2) return 'done'; if(pos === 3) return 'error'; return 'pending'; }
+    if(state==='DECLINED' || state==='FAILED'){ if(pos < reached) return 'done'; if(pos === reached) return 'error'; return 'pending'; }
+    if(pos < reached) return 'done';
+    if(pos === reached) return isTerminal(state) ? 'done' : 'active';
+    return 'pending';
+  }
+  function stepsFor(m){ var s = STEPS.slice(); if(m && m.policyDecision === 'auto_approve') s = s.filter(function(x){ return x.id !== 'approval'; }); return s; }
+
+  function renderLog(m){
+    var steps = stepsFor(m), log = $('log'), existing = {};
+    var wanted = {}; steps.forEach(function(s){ wanted[s.id] = true; });
+    // Drop any node that no longer belongs — e.g. the approval step once a
+    // request turns out to be auto-approved. The first paint runs before the
+    // decision is known and optimistically lays down all five steps.
+    Array.prototype.slice.call(log.children).forEach(function(el){
+      if(!wanted[el.dataset.step]) log.removeChild(el);
+    });
+    Array.prototype.forEach.call(log.children, function(el){ existing[el.dataset.step] = el; });
+    steps.forEach(function(s, i){
+      var status = stepStatus(m.state, i+1), el = existing[s.id];
+      if(!el){
+        el = document.createElement('div');
+        el.className = 'log-line pending'; el.dataset.step = s.id; el.style.animationDelay = (i*0.06)+'s';
+        el.innerHTML =
+          '<div class="ts" data-ts></div>'
+          + '<div class="rail"><div class="node"></div><div class="thread"></div></div>'
+          + '<div class="body"><div class="log-title">'+esc(s.title)+'</div>'
+          + '<button class="disclose" data-toggle><span class="caret">▶</span><span>Details</span></button>'
+          + '<div class="log-detail">'+esc(s.hint)+'</div></div>';
+        log.appendChild(el);
+        el.querySelector('[data-toggle]').addEventListener('click', function(){ el.classList.toggle('show-detail'); });
+      }
+      if(status !== 'pending' && !seenTs[s.id]){ seenTs[s.id] = clock(); el.querySelector('[data-ts]').textContent = seenTs[s.id]; }
+      var keepOpen = el.classList.contains('show-detail');
+      el.className = 'log-line ' + status + (keepOpen ? ' show-detail' : '');
+      el.querySelector('.node').innerHTML = status==='done' ? '✓' : status==='error' ? '✕' : '';
+      if(s.id === 'checkout' && m.gatewayMessage){ el.querySelector('.log-detail').textContent = m.gatewayMessage; }
     });
   }
 
-  function renderTimeline(mandate){
-    var steps=buildSteps(mandate);
-    document.getElementById('timeline').innerHTML=steps.map(function(s){
-      var cls=s.status==='done'?'done':s.status==='active'?'active':s.status==='error'?'error':'';
-      var icon=s.status==='done'?'✓':s.status==='error'?'✕':s.status==='active'?'⏳':s.icon;
-      return '<div class="tl-item '+cls+'"><div class="tl-dot">'+icon+'</div><div class="tl-content"><div class="tl-title">'+esc(s.label)+'</div><div class="tl-desc">'+esc(s.desc)+'</div></div></div>';
+  function renderMeta(m){
+    var bits = [];
+    if(m.merchant) bits.push('<span><b>'+esc(m.merchant)+'</b></span>');
+    if(m.amountCents) bits.push('<span class="amt">'+usd(m.amountCents)+'</span>');
+    if(m.recurrence && m.recurrence !== 'one time') bits.push('<span>'+esc(m.recurrence)+'</span>');
+    if(m.seats) bits.push('<span>'+m.seats+' seats</span>');
+    $('meta').innerHTML = bits.join('');
+  }
+
+  function verdictChip(m){
+    if(m.policyDecision === 'auto_approve') return '<span class="verdict auto">Auto-approved</span>';
+    if(m.policyDecision === 'reject' || m.state==='REJECTED') return '<span class="verdict stop">Rejected</span>';
+    return '<span class="verdict appr">Needs approval</span>';
+  }
+  function riskRead(m){
+    if(m.state==='REJECTED' || m.policyDecision==='reject') return { level:'high', pct:88, label:'HIGH' };
+    if(m.policyDecision==='requires_approval' || m.state==='PENDING_APPROVAL') return { level:'med', pct:55, label:'ELEVATED' };
+    if(isTerminal(m.state) && m.state!=='COMPLETED') return { level:'med', pct:50, label:'ELEVATED' };
+    return { level:'low', pct:22, label:'LOW' };
+  }
+
+  function renderDecisions(m){
+    var risk = riskRead(m);
+    var credLine = m.cardLast4 ? 'Single-use ···'+esc(m.cardLast4)
+      : (m.policyDecision==='reject' ? 'None issued' : 'Single-use virtual card');
+    var reason = (m.policyReasons && m.policyReasons[0]) ? m.policyReasons[0] : '—';
+    var rows = [
+      ['Extracted intent', '<dd class="mono">'+esc(m.purpose || '—')+'</dd>'],
+      ['Merchant', '<dd>'+esc(m.merchant || 'Not identified')+'</dd>'],
+      ['Amount', '<dd class="mono">'+(m.amountCents?usd(m.amountCents):'—')+'</dd>'],
+      ['Policy decision', '<dd>'+verdictChip(m)+'</dd>'],
+      ['Approval reason', '<dd>'+esc(reason)+'</dd>'],
+      ['Credential', '<dd class="mono">'+credLine+'</dd>'],
+      ['Risk assessment', '<dd><div class="risk '+risk.level+'"><div class="risk-bar '+risk.level+'"><i style="width:'+risk.pct+'%"></i></div><span class="risk-label">'+risk.label+'</span></div></dd>']
+    ];
+    $('decisions-body').innerHTML = rows.map(function(r,i){
+      return '<div class="dec" style="animation-delay:'+(i*0.05)+'s"><dt>'+r[0]+'</dt>'+r[1]+'</div>';
     }).join('');
   }
 
-  function renderBanner(mandate){
-    var el=document.getElementById('result-banner');
-    el.className='result-banner';el.innerHTML='';
-    var st=mandate.state;
-    if(st==='COMPLETED'){el.classList.add('show','approved');el.innerHTML='✅ <b>Purchase completed!</b> '+esc(usd(mandate.amountCents))+' at '+esc(mandate.scope.merchant)+(mandate.prava&&mandate.prava.cardLast4?' · card ···'+esc(mandate.prava.cardLast4):'');}
-    else if(st==='REJECTED'){el.classList.add('show','rejected');el.innerHTML='❌ <b>Request declined.</b> '+(esc((mandate.policyReasons||[]).join(' '))||'Does not meet company policy.');}
-    else if(st==='REVOKED'){el.classList.add('show','rejected');el.innerHTML='❌ <b>Mandate revoked</b> by approver.';}
-    else if(st==='PENDING_APPROVAL'){el.classList.add('show','pending');el.innerHTML='⏳ <b>Waiting for Finance Approver.</b> An approval link has been sent. You\'ll be notified when done.';}
-    else if(st==='EXECUTING'){el.classList.add('show','pending');el.innerHTML='🤖 <b>Agent is completing checkout…</b> Virtual card issued, browser checking out.';}
+  function renderKicker(m){
+    var k = $('kicker'), t = $('kicker-text');
+    k.className = 'run-kicker';
+    if(m.state==='COMPLETED'){ k.classList.add('done'); t.textContent = 'Purchase complete'; }
+    else if(m.state==='REJECTED' || m.state==='REVOKED' || m.state==='EXPIRED'){ k.classList.add('stopped'); t.textContent = 'Stopped'; }
+    else if(m.state==='DECLINED' || m.state==='FAILED'){ k.classList.add('stopped'); t.textContent = 'Declined at gateway'; }
+    else t.textContent = 'Agent running';
+  }
+  function elapsed(){ var s = Math.max(0,(Date.now()-startedAt)/1000); return s < 60 ? s.toFixed(1)+'s' : Math.floor(s/60)+'m '+Math.round(s%60)+'s'; }
+
+  function renderOutcome(m){
+    var el = $('outcome');
+    if(!isTerminal(m.state)){ el.innerHTML=''; return; }
+    if(m.state === 'COMPLETED'){
+      el.innerHTML =
+        '<div class="outcome"><div class="outcome-card win">'
+        + '<div class="outcome-flag"><span class="ic">✓</span>Purchase completed</div>'
+        + '<div class="outcome-line">'+usd(m.amountCents)+' <span class="m">at '+esc(m.merchant)+'</span></div>'
+        + '<dl class="outcome-grid">'
+          + oc('Merchant', esc(m.merchant)) + oc('Amount', usd(m.amountCents)) + oc('Execution', elapsed())
+          + (m.cardLast4?oc('Card', '···'+esc(m.cardLast4)):'') + (m.visaConfirmation?oc('Visa', esc(m.visaConfirmation)):'')
+        + '</dl>'
+        + '<div class="lifecycle"><span class="seg"><b>Issued</b></span><span class="arrow">→</span>'
+          + '<span class="seg"><b>Charged</b> '+usd(m.amountCents)+'</span><span class="arrow">→</span>'
+          + '<span class="seg kill"><b>Spent · cannot be reused</b></span></div>'
+        + '</div></div>';
+      return;
+    }
+    var headline, sub = '';
+    if(m.state==='DECLINED'){ headline = 'Declined at the merchant gateway'; sub = m.gatewayMessage; }
+    else if(m.state==='FAILED'){ headline = 'Checkout could not complete'; sub = m.gatewayMessage; }
+    else if(m.state==='REJECTED'){ headline = 'Request declined by policy'; sub = (m.policyReasons||[]).join(' '); }
+    else if(m.state==='REVOKED'){ headline = 'Mandate revoked'; sub = 'The approver withdrew authorization. The credential is dead.'; }
+    else { headline = 'Request expired'; sub = 'Nobody approved it in time. Send it again if you still need it.'; }
+    el.innerHTML =
+      '<div class="outcome"><div class="outcome-card stop">'
+      + '<div class="outcome-flag"><span class="ic">✕</span>No money moved</div>'
+      + '<div class="outcome-line">'+esc(headline)+'</div>'
+      + (sub?'<div style="font-size:13.5px;color:var(--ink-2);margin-top:10px;line-height:1.5">'+esc(sub)+'</div>':'')
+      + (m.reportedStatus?'<div class="lifecycle"><span class="seg">Reported to Prava as <b>'+esc(m.reportedStatus)+'</b></span></div>':'')
+      + '</div></div>';
+  }
+  function oc(k,v){ return '<div class="oc"><dt>'+k+'</dt><dd>'+v+'</dd></div>'; }
+
+  function paint(m){ renderKicker(m); renderMeta(m); renderLog(m); renderDecisions(m); renderOutcome(m); }
+
+  function fetchFull(id){
+    return fetch('/api/mandates/'+encodeURIComponent(id))
+      .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+      .then(function(d){ return norm(d.mandate); });
+  }
+  function stopPoll(){ if(pollTimer){ clearInterval(pollTimer); pollTimer=null; } }
+  function startPoll(id){
+    stopPoll(); pollStart = Date.now();
+    pollTimer = setInterval(function(){
+      if(Date.now()-pollStart > POLL_CAP){ stopPoll(); return; }
+      fetchFull(id).then(function(m){ if(!m) return; paint(m); if(isTerminal(m.state)) stopPoll(); }).catch(function(){});
+    }, POLL_MS);
   }
 
-  function updateStatus(m){
-    document.getElementById('st-merchant').textContent=m.scope.merchant||'—';
-    document.getElementById('st-purpose').textContent=m.purpose||'Processing…';
-    document.getElementById('st-amount').textContent=usd(m.amountCents);
-    document.getElementById('st-avatar').textContent=emoji(m.scope.merchant);
-    renderTimeline(m);
-    renderBanner(m);
-  }
-
-  function isTerminal(s){return s==='COMPLETED'||s==='REJECTED'||s==='REVOKED';}
-
-  function startPolling(id){
-    if(pollTimer)clearInterval(pollTimer);
-    pollTimer=setInterval(function(){
-      fetch('/api/mandates/'+encodeURIComponent(id)).then(function(r){return r.json();}).then(function(d){
-        if(d.mandate){updateStatus(d.mandate);if(isTerminal(d.mandate.state)){clearInterval(pollTimer);pollTimer=null;}}
-      }).catch(function(){});
-    },2500);
-  }
-
-  function showStatus(){
-    document.getElementById('status-section').classList.add('visible');
-    document.getElementById('quick-examples').style.display='none';
-    document.getElementById('compose-card').style.display='none';
-  }
-
-  window.newRequest=function(){
-    if(pollTimer){clearInterval(pollTimer);pollTimer=null;}
-    document.getElementById('status-section').classList.remove('visible');
-    document.getElementById('quick-examples').style.display='';
-    document.getElementById('compose-card').style.display='';
-    document.getElementById('msg').value='';
-    document.getElementById('msg').focus();
+  window.sendRequest = function(){
+    var text = $('msg').value.trim();
+    if(!text) return;
     setErr('');
-  };
+    $('send-btn').disabled = true;
+    $('send-icon').innerHTML = '<span class="spin"></span>';
+    startedAt = Date.now(); seenTs = {};
+    $('said').textContent = text; $('meta').innerHTML=''; $('log').innerHTML=''; $('outcome').innerHTML=''; $('decisions-body').innerHTML='';
+    toRun();
+    paint({ state:'DRAFT', purpose:text, policyReasons:[] });
 
-  window.sendRequest=function(){
-    var text=document.getElementById('msg').value.trim();
-    if(!text)return;
-    setErr('');
-    var btn=document.getElementById('send-btn'),lbl=document.getElementById('send-label'),spn=document.getElementById('send-spinner');
-    btn.disabled=true;lbl.textContent='Thinking…';spn.style.display='';
-    showStatus();
-    document.getElementById('st-merchant').textContent='Processing…';
-    document.getElementById('st-purpose').textContent=text;
-    document.getElementById('st-amount').textContent='';
-    document.getElementById('st-avatar').textContent='🤖';
-    renderTimeline(null);
-    fetch('/api/simulate/message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({from:'+15550100200',text:text})})
-    .then(function(r){return r.json();})
+    fetch('/api/simulate/message', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ from:'+15550100200', text:text }) })
+    .then(function(r){ return r.json().catch(function(){ return {}; }).then(function(b){ if(!r.ok) throw Object.assign(new Error(b.message || ('Request failed with '+r.status)), { handled:true }); return b; }); })
     .then(function(res){
-      btn.disabled=false;lbl.textContent='Send Request';spn.style.display='none';
-      if(res.mandate){updateStatus(res.mandate);if(!isTerminal(res.mandate.state))startPolling(res.mandate.id);}
-      else{setErr(res.error||res.reply||'Something went wrong — try rephrasing.');window.newRequest();}
+      resetSend();
+      if(!res.mandate){ toAsk(); setErr(res.reply || 'That was not read as a purchase. Name the merchant and the amount, e.g. "Figma, $45 a month".'); return; }
+      paint(norm(res.mandate));
+      fetchFull(res.mandate.id).then(function(m){ if(m) paint(m); if(!m || !isTerminal(m.state)) startPoll(res.mandate.id); })
+        .catch(function(){ if(!isTerminal(res.mandate.state)) startPoll(res.mandate.id); });
     })
-    .catch(function(){
-      btn.disabled=false;lbl.textContent='Send Request';spn.style.display='none';
-      setErr('Could not reach the server. Is it running?');window.newRequest();
-    });
+    .catch(function(err){ resetSend(); toAsk(); setErr(err && err.handled ? err.message : 'Could not reach the server. Is it running?'); });
   };
 
-  document.getElementById('msg').addEventListener('keydown',function(e){
-    if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendRequest();}
+  window.newRequest = toAsk;
+
+  document.addEventListener('click', function(ev){
+    var fill = ev.target.closest('[data-fill]');
+    if(fill){ window.fill(fill.getAttribute('data-fill')); return; }
+    var act = ev.target.closest('[data-action]');
+    if(!act) return;
+    if(act.getAttribute('data-action') === 'send') window.sendRequest();
+    else if(act.getAttribute('data-action') === 'new') window.newRequest();
   });
+  document.addEventListener('keydown', function(ev){
+    if(ev.key === 'Enter' && !ev.shiftKey && ev.target === $('msg')){ ev.preventDefault(); window.sendRequest(); return; }
+    if(ev.key === 'Enter' || ev.key === ' '){ var chip = ev.target.closest('.chip[data-fill]'); if(chip){ ev.preventDefault(); window.fill(chip.getAttribute('data-fill')); } }
+  });
+  $('msg').addEventListener('input', function(){ autosize(this); });
+
+  try { loadPolicy(); } catch(e){}
 })();
 </script>
 </body>
