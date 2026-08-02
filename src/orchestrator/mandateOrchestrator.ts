@@ -550,7 +550,15 @@ export class MandateOrchestrator {
             responseCode: result.responseCode,
             amountCents: current.amountCents,
           })
-        : ({ ok: false, detail: 'no charge to report' } as ReportResult);
+        : current.prava.sessionId && !current.prava.sessionId.startsWith('sim_')
+          ? await prava.reportSessionStatus(current.prava.sessionId, {
+              approved,
+              authorizationCode: result.authorizationCode,
+              responseCode: result.responseCode,
+              amountCents: current.amountCents,
+            })
+          : ({ ok: false, detail: 'no charge to report' } as ReportResult);
+
 
     const mandate = await this.repo.withLock(mandateId, async (m) => {
       const target =

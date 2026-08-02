@@ -376,6 +376,51 @@ export class PravaClient {
     }
   }
 
+  /**
+   * Report status directly for a session ID.
+   * Required by Prava to settle session/order status from Pending to DECLINED or APPROVED
+   * in the Prava Dashboard (POST /v1/sessions/{sessionId}/report-status).
+   */
+  async reportSessionStatus(
+    sessionId: string,
+    outcome: {
+      approved: boolean;
+      authorizationCode?: string;
+      responseCode?: string;
+      amountCents?: number;
+    },
+  ): Promise<ReportResult> {
+    if (!capabilities.prava || !sessionId || sessionId.startsWith('sim_')) {
+      return { ok: false, detail: 'simulated (no PRAVA_API_KEY or sim_ session)' };
+    }
+    const request: ReportChargeRequest = {
+      txn_status: outcome.approved ? 'APPROVED' : 'DECLINED',
+      txn_type: 'PURCHASE',
+      ...(outcome.authorizationCode ? { authorization_code: outcome.authorizationCode.slice(0, 128) } : {}),
+      ...(outcome.responseCode ? { response_code: outcome.responseCode.slice(0, 2) } : {}),
+      ...(outcome.approved && outcome.amountCents !== undefined
+        ? { amount_paid: centsToAmountString(outcome.amountCents) }
+        : {}),
+    };
+    try {
+      const response = await this.http.post<ReportChargeResponse>(
+        PRAVA_ROUTES.reportSessionStatus(sessionId),
+        request,
+        { idempotencyKey: `report-session:${sessionId}` },
+      );
+      logger.info(
+        { sessionId, txnStatus: request.txn_status, settlement: response.status, visa: response.visaConfirmation },
+        'prava session status settled',
+      );
+      return { ok: true, detail: `${response.status} / visa ${response.visaConfirmation ?? 'n/a'}`, response, request };
+    } catch (error) {
+      const detail = describeHttpError(error);
+      logger.error({ sessionId, err: detail }, 'prava session status report failed');
+      return { ok: false, detail, request };
+    }
+  }
+
+
   // -- Lifecycle -----------------------------------------------------------
 
   /**
