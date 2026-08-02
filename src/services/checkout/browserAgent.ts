@@ -174,18 +174,23 @@ export async function executeCheckout(params: CheckoutParams): Promise<CheckoutR
         const surface = surfaceOf(stagehand);
 
         await track('navigate', () => page.goto(merchant.url, { waitUntil: 'domcontentloaded' }));
-        await track('find product', () =>
-          surface.act(
-            `Find a product matching "${mandate.purpose}". If nothing matches closely, open the first product on the page.`,
-          ),
-        );
-        await track('add to cart', () => surface.act('Add the selected product to the cart'));
-        await track('open checkout', () => surface.act('Go to the cart and start checkout'));
-        await track('fill contact', () =>
-          surface.act(
-            `Fill the checkout contact and shipping details using email "${env.REQUESTER_EMAIL}" and name "${env.ORG_NAME}". Continue to the payment step.`,
-          ),
-        );
+        await track('find product', async () => {
+          await surface.act(
+            `Click on the first product card or product title matching "${mandate.purpose}" to view its details page.`,
+          );
+        });
+        await track('add to cart', async () => {
+          await surface.act('Click the "Add to Cart" or "Buy Now" button on this product page.');
+        });
+        await track('open checkout', async () => {
+          await surface.act('Click the "Checkout", "Cart", or "View Cart" button to open the checkout form.');
+        });
+        await track('fill contact', async () => {
+          await surface.act(
+            `Fill in contact and shipping details with email "${env.REQUESTER_EMAIL}", name "${env.ORG_NAME}", address "123 Main St", city "Mumbai", postal code "400001", phone "9876543210". Then click "Continue to payment" or "Pay now".`,
+          );
+        });
+
 
         await capture(page, 'before-payment');
 
