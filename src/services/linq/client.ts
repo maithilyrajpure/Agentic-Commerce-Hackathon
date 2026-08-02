@@ -138,6 +138,15 @@ export function parseInboundMessage(payload: unknown): InboundMessage | null {
     '';
   const messageId: string | undefined = data.id ?? data.message_id ?? data.messageId ?? root.id;
 
+  // Ignore messages sent by ourselves (agent outbound self-echo loop guard)
+  const isMe = Boolean(data.is_me || data.from_handle?.is_me || root.is_me);
+  const agentPhone = env.LINQ_PHONE_NUMBER ? normalizePhone(env.LINQ_PHONE_NUMBER) : '+15124371883';
+  const senderPhone = fromPhone ? normalizePhone(String(fromPhone)) : '';
+
+  if (isMe || (agentPhone && senderPhone && agentPhone === senderPhone)) {
+    return null;
+  }
+
   if (!fromPhone || typeof text !== 'string' || !text.trim()) return null;
 
   return { eventType: eventType || 'message.created', fromPhone: String(fromPhone), text: text.trim(), messageId };
