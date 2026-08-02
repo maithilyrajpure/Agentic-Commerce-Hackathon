@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CardGuard — Request a Purchase</title>
+  <meta name="description" content="Submit a purchase request to your company's AI-powered spend management agent." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --visa-blue: #1434CB;
+      --visa-blue-light: #EEF1FD;
+      --visa-blue-dark: #0F27A0;
+      --bg: #F8FAFC;
+      --surface: #FFFFFF;
+      --border: #E2E8F0;
+      --border-light: #F1F5F9;
+      --text-primary: #0F172A;
+      --text-secondary: #475569;
+      --text-muted: #94A3B8;
+      --green: #10B981;
+      --green-bg: #ECFDF5;
+      --amber: #F59E0B;
+      --amber-bg: #FFFBEB;
+      --red: #EF4444;
+      --red-bg: #FEF2F2;
+      --radius: 12px;
+      --radius-sm: 8px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+      --shadow-md: 0 4px 16px rgba(0,0,0,0.08), 0 2px 6px rgba(0,0,0,0.04);
+    }
+    body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg); color: var(--text-primary); min-height: 100vh; display: flex; flex-direction: column; }
+    header { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 32px; height: 64px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
+    .logo { display: flex; align-items: center; gap: 10px; text-decoration: none; }
+    .logo-icon { width: 36px; height: 36px; background: var(--visa-blue); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-size: 18px; }
+    .logo-text { font-size: 16px; font-weight: 700; color: var(--text-primary); }
+    .logo-sub { font-size: 11px; color: var(--text-muted); font-weight: 400; }
+    .header-nav { display: flex; align-items: center; gap: 8px; }
+    .nav-link { font-size: 13px; color: var(--text-secondary); text-decoration: none; padding: 6px 12px; border-radius: var(--radius-sm); transition: background 0.15s; }
+    .nav-link:hover { background: var(--bg); }
+    .nav-link.active { color: var(--visa-blue); background: var(--visa-blue-light); font-weight: 500; }
+    main { flex: 1; max-width: 680px; width: 100%; margin: 0 auto; padding: 48px 24px 120px; }
+    .page-hero { text-align: center; margin-bottom: 36px; }
+    .page-hero h1 { font-size: 28px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px; }
+    .page-hero p { font-size: 15px; color: var(--text-secondary); line-height: 1.6; }
+    .policy-chips { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 14px; }
+    .policy-chip { font-size: 12px; color: var(--text-secondary); background: var(--surface); border: 1px solid var(--border); padding: 4px 10px; border-radius: 20px; }
+    .policy-chip b { color: var(--visa-blue); }
+    .input-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-md); overflow: hidden; margin-bottom: 24px; }
+    .input-area { padding: 20px 20px 12px; }
+    textarea { width: 100%; min-height: 80px; border: none; outline: none; resize: none; font-family: inherit; font-size: 15px; color: var(--text-primary); line-height: 1.6; background: transparent; }
+    textarea::placeholder { color: var(--text-muted); }
+    .input-footer { padding: 10px 16px; border-top: 1px solid var(--border-light); display: flex; align-items: center; justify-content: space-between; }
+    .input-hint { font-size: 12px; color: var(--text-muted); }
+    .send-btn { background: var(--visa-blue); color: white; border: none; border-radius: var(--radius-sm); padding: 9px 20px; font-size: 14px; font-weight: 600; font-family: inherit; cursor: pointer; transition: background 0.15s, transform 0.1s; display: flex; align-items: center; gap: 6px; }
+    .send-btn:hover { background: var(--visa-blue-dark); }
+    .send-btn:active { transform: scale(0.98); }
+    .send-btn:disabled { background: var(--border); color: var(--text-muted); cursor: not-allowed; transform: none; }
+    .quick-section { margin-bottom: 32px; }
+    .quick-label { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 10px; }
+    .quick-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .quick-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s; text-align: left; }
+    .quick-card:hover { border-color: var(--visa-blue); box-shadow: 0 0 0 3px var(--visa-blue-light); }
+    .quick-card-label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+    .quick-card-text { font-size: 13px; color: var(--text-secondary); line-height: 1.4; }
+    .quick-card-tag { display: inline-block; margin-top: 6px; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 20px; }
+    .tag-auto { background: var(--green-bg); color: var(--green); }
+    .tag-approval { background: var(--amber-bg); color: var(--amber); }
+    .tag-blocked { background: var(--red-bg); color: var(--red); }
+    #status-section { display: none; }
+    #status-section.visible { display: block; }
+    .status-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+    .status-header { padding: 20px 24px; border-bottom: 1px solid var(--border-light); display: flex; align-items: center; gap: 14px; }
+    .st-avatar { width: 44px; height: 44px; border-radius: 10px; background: var(--visa-blue-light); display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; }
+    .st-merchant-name { font-size: 16px; font-weight: 600; }
+    .st-purpose { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+    .st-amount { margin-left: auto; font-size: 22px; font-weight: 700; color: var(--text-primary); }
+    .timeline { padding: 24px 24px 8px; }
+    .tl-item { display: flex; align-items: flex-start; gap: 14px; padding-bottom: 22px; position: relative; }
+    .tl-item:last-child { padding-bottom: 0; }
+    .tl-item:not(:last-child)::before { content: ''; position: absolute; left: 15px; top: 32px; bottom: 0; width: 2px; background: var(--border); }
+    .tl-item.done:not(:last-child)::before { background: var(--green); }
+    .tl-item.active:not(:last-child)::before { background: linear-gradient(to bottom, var(--amber), var(--border)); }
+    .tl-dot { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 13px; z-index: 1; border: 2px solid var(--border); background: var(--surface); color: var(--text-muted); }
+    .tl-item.done .tl-dot { background: var(--green); border-color: var(--green); color: white; }
+    .tl-item.active .tl-dot { background: var(--amber-bg); border-color: var(--amber); color: var(--amber); animation: pulse-dot 1.5s ease-in-out infinite; }
+    .tl-item.error .tl-dot { background: var(--red-bg); border-color: var(--red); color: var(--red); }
+    @keyframes pulse-dot { 0%, 100% { box-shadow: 0 0 0 0 rgba(245,158,11,0.4); } 50% { box-shadow: 0 0 0 6px rgba(245,158,11,0); } }
+    .tl-content { flex: 1; padding-top: 5px; }
+    .tl-title { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+    .tl-desc { font-size: 13px; color: var(--text-secondary); margin-top: 2px; line-height: 1.5; }
+    .result-banner { margin: 0 24px 20px; padding: 14px 18px; border-radius: var(--radius-sm); font-size: 14px; font-weight: 500; display: none; align-items: center; gap: 10px; line-height: 1.5; }
+    .result-banner.show { display: flex; }
+    .result-banner.approved { background: var(--green-bg); color: #065F46; border: 1px solid #A7F3D0; }
+    .result-banner.pending { background: var(--amber-bg); color: #92400E; border: 1px solid #FDE68A; }
+    .result-banner.rejected { background: var(--red-bg); color: #991B1B; border: 1px solid #FECACA; }
+    #error-bar { background: var(--red-bg); color: var(--red); border: 1px solid #FECACA; border-radius: var(--radius-sm); padding: 12px 16px; font-size: 13px; margin-bottom: 16px; display: none; }
+    #error-bar.show { display: block; }
+    .new-req-btn { background: transparent; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 8px 16px; font-size: 13px; font-weight: 500; font-family: inherit; color: var(--text-secondary); cursor: pointer; transition: all 0.15s; margin: 20px 24px 24px; display: block; }
+    .new-req-btn:hover { border-color: var(--visa-blue); color: var(--visa-blue); }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block; vertical-align: middle; }
+  </style>
+</head>
+<body>
+<header>
+  <a href="/request" class="logo">
+    <div class="logo-icon">🛡️</div>
+    <div>
+      <div class="logo-text">CardGuard</div>
+      <div class="logo-sub">Agentic Commerce</div>
+    </div>
+  </a>
+  <nav class="header-nav">
+    <a href="/request" class="nav-link active">Request Purchase</a>
+    <a href="/dashboard" class="nav-link">Admin Ledger</a>
+  </nav>
+</header>
+
+<main>
+  <div class="page-hero">
+    <h1>What do you need to buy?</h1>
+    <p>Describe your purchase in plain English. The AI agent checks company policy,<br>gets approval if needed, and completes the purchase automatically.</p>
+    <div class="policy-chips">
+      <span class="policy-chip">Auto-approve under <b>$25</b></span>
+      <span class="policy-chip">Passkey approval <b>$25–$100</b></span>
+      <span class="policy-chip">Monthly budget <b>$500/person</b></span>
+      <span class="policy-chip">Policy <b>2026.08.01</b></span>
+    </div>
+  </div>
+
+  <div id="error-bar"></div>
+
+  <div class="input-card" id="compose-card">
+    <div class="input-area">
+      <textarea id="msg" placeholder='e.g. "Need $45 for Figma Professional monthly for 2 designers"' rows="3"></textarea>
+    </div>
+    <div class="input-footer">
+      <span class="input-hint">💡 Be specific about merchant, amount and purpose</span>
+      <button class="send-btn" id="send-btn" onclick="sendRequest()">
+        <span id="send-label">Send Request</span>
+        <span id="send-spinner" style="display:none"><span class="spinner"></span></span>
+      </button>
+    </div>
+  </div>
+
+  <div class="quick-section" id="quick-examples">
+    <div class="quick-label">Quick Examples</div>
+    <div class="quick-grid">
+      <div class="quick-card" onclick="fill('Need $15 for OpenAI API credits for backend testing')">
+        <div class="quick-card-label">Auto-Approved</div>
+        <div class="quick-card-text">$15 OpenAI API credits for backend testing</div>
+        <span class="quick-card-tag tag-auto">⚡ Instant</span>
+      </div>
+      <div class="quick-card" onclick="fill('Buy $45 Figma Professional monthly subscription for design team')">
+        <div class="quick-card-label">Needs Approval</div>
+        <div class="quick-card-text">$45 Figma Professional monthly for design team</div>
+        <span class="quick-card-tag tag-approval">🔑 Passkey</span>
+      </div>
+      <div class="quick-card" onclick="fill('Top up $20 Vercel Pro for deployment')">
+        <div class="quick-card-label">Auto-Approved</div>
+        <div class="quick-card-text">$20 Vercel Pro deployment</div>
+        <span class="quick-card-tag tag-auto">⚡ Instant</span>
+      </div>
+      <div class="quick-card" onclick="fill('Expense $150 JetBrains All Products Pack')">
+        <div class="quick-card-label">Will Be Blocked</div>
+        <div class="quick-card-text">$150 JetBrains — over $100 hard ceiling</div>
+        <span class="quick-card-tag tag-blocked">✕ Rejected</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="status-section">
+    <div class="status-card">
+      <div class="status-header">
+        <div class="st-avatar" id="st-avatar">🏪</div>
+        <div>
+          <div class="st-merchant-name" id="st-merchant">—</div>
+          <div class="st-purpose" id="st-purpose">Processing your request…</div>
+        </div>
+        <div class="st-amount" id="st-amount"></div>
+      </div>
+      <div class="result-banner" id="result-banner"></div>
+      <div class="timeline" id="timeline"></div>
+      <button class="new-req-btn" onclick="newRequest()">+ New Request</button>
+    </div>
+  </div>
+</main>
+
+<script>
+(function(){
+  var ME = {openai:'🤖',figma:'🎨',github:'🐙',vercel:'▲',notion:'📓',slack:'💬',aws:'☁️',cloudflare:'🔶',linear:'📐',anthropic:'🧠',datadog:'🐕',sentry:'🔍',stripe:'💳',browserbase:'🌐'};
+  function esc(s){var d=document.createElement('div');d.textContent=String(s||'');return d.innerHTML;}
+  function usd(c){return '$'+(c/100).toFixed(2);}
+  function emoji(name){var n=(name||'').toLowerCase();for(var k in ME){if(n.includes(k))return ME[k];}return '🏪';}
+
+  window.fill=function(t){document.getElementById('msg').value=t;document.getElementById('msg').focus();};
+
+  function setErr(msg){var e=document.getElementById('error-bar');if(msg){e.textContent=msg;e.classList.add('show');}else{e.textContent='';e.classList.remove('show');}}
+
+  var pollTimer=null;
+
+  var ALL_STEPS=[
+    {id:'received',  label:'Request Received',   desc:'AI understood your purchase intent',          icon:'🤖'},
+    {id:'policy',    label:'Policy Checked',      desc:'Spending rules and limits verified',          icon:'📋'},
+    {id:'approval',  label:'Finance Approval',    desc:'Passkey confirmation from approver',          icon:'🔑'},
+    {id:'card',      label:'Virtual Card Issued', desc:'Single-use Visa credential minted by Prava',  icon:'💳'},
+    {id:'checkout',  label:'Checkout Completed',  desc:'Browser agent purchased on your behalf',      icon:'✅'},
+  ];
+
+  var STATE_REACH={DRAFT:1,PENDING_APPROVAL:3,AUTHORIZED:4,PROVISIONED:4,EXECUTING:5,COMPLETED:6,REJECTED:-1,REVOKED:-1};
+
+  function buildSteps(mandate){
+    var steps=ALL_STEPS.slice();
+    if(mandate&&mandate.policyDecision==='auto_approve') steps.splice(2,1);
+    var state=mandate?mandate.state:'DRAFT';
+    var reached=STATE_REACH[state]||1;
+    var dead=state==='REJECTED'||state==='REVOKED';
+    return steps.map(function(s,i){
+      var pos=i+1;
+      var status='waiting';
+      if(dead&&pos<=2) status='done';
+      else if(dead&&pos===3) status='error';
+      else if(pos<reached) status='done';
+      else if(pos===reached) status='active';
+      return {label:s.label,desc:s.desc,icon:s.icon,status:status};
+    });
+  }
+
+  function renderTimeline(mandate){
+    var steps=buildSteps(mandate);
+    document.getElementById('timeline').innerHTML=steps.map(function(s){
+      var cls=s.status==='done'?'done':s.status==='active'?'active':s.status==='error'?'error':'';
+      var icon=s.status==='done'?'✓':s.status==='error'?'✕':s.status==='active'?'⏳':s.icon;
+      return '<div class="tl-item '+cls+'"><div class="tl-dot">'+icon+'</div><div class="tl-content"><div class="tl-title">'+esc(s.label)+'</div><div class="tl-desc">'+esc(s.desc)+'</div></div></div>';
+    }).join('');
+  }
+
+  function renderBanner(mandate){
+    var el=document.getElementById('result-banner');
+    el.className='result-banner';el.innerHTML='';
+    var st=mandate.state;
+    if(st==='COMPLETED'){el.classList.add('show','approved');el.innerHTML='✅ <b>Purchase completed!</b> '+esc(usd(mandate.amountCents))+' at '+esc(mandate.scope.merchant)+(mandate.prava&&mandate.prava.cardLast4?' · card ···'+esc(mandate.prava.cardLast4):'');}
+    else if(st==='REJECTED'){el.classList.add('show','rejected');el.innerHTML='❌ <b>Request declined.</b> '+(esc((mandate.policyReasons||[]).join(' '))||'Does not meet company policy.');}
+    else if(st==='REVOKED'){el.classList.add('show','rejected');el.innerHTML='❌ <b>Mandate revoked</b> by approver.';}
+    else if(st==='PENDING_APPROVAL'){el.classList.add('show','pending');el.innerHTML='⏳ <b>Waiting for Finance Approver.</b> An approval link has been sent. You\'ll be notified when done.';}
+    else if(st==='EXECUTING'){el.classList.add('show','pending');el.innerHTML='🤖 <b>Agent is completing checkout…</b> Virtual card issued, browser checking out.';}
+  }
+
+  function updateStatus(m){
+    document.getElementById('st-merchant').textContent=m.scope.merchant||'—';
+    document.getElementById('st-purpose').textContent=m.purpose||'Processing…';
+    document.getElementById('st-amount').textContent=usd(m.amountCents);
+    document.getElementById('st-avatar').textContent=emoji(m.scope.merchant);
+    renderTimeline(m);
+    renderBanner(m);
+  }
+
+  function isTerminal(s){return s==='COMPLETED'||s==='REJECTED'||s==='REVOKED';}
+
+  function startPolling(id){
+    if(pollTimer)clearInterval(pollTimer);
+    pollTimer=setInterval(function(){
+      fetch('/api/mandates/'+encodeURIComponent(id)).then(function(r){return r.json();}).then(function(d){
+        if(d.mandate){updateStatus(d.mandate);if(isTerminal(d.mandate.state)){clearInterval(pollTimer);pollTimer=null;}}
+      }).catch(function(){});
+    },2500);
+  }
+
+  function showStatus(){
+    document.getElementById('status-section').classList.add('visible');
+    document.getElementById('quick-examples').style.display='none';
+    document.getElementById('compose-card').style.display='none';
+  }
+
+  window.newRequest=function(){
+    if(pollTimer){clearInterval(pollTimer);pollTimer=null;}
+    document.getElementById('status-section').classList.remove('visible');
+    document.getElementById('quick-examples').style.display='';
+    document.getElementById('compose-card').style.display='';
+    document.getElementById('msg').value='';
+    document.getElementById('msg').focus();
+    setErr('');
+  };
+
+  window.sendRequest=function(){
+    var text=document.getElementById('msg').value.trim();
+    if(!text)return;
+    setErr('');
+    var btn=document.getElementById('send-btn'),lbl=document.getElementById('send-label'),spn=document.getElementById('send-spinner');
+    btn.disabled=true;lbl.textContent='Thinking…';spn.style.display='';
+    showStatus();
+    document.getElementById('st-merchant').textContent='Processing…';
+    document.getElementById('st-purpose').textContent=text;
+    document.getElementById('st-amount').textContent='';
+    document.getElementById('st-avatar').textContent='🤖';
+    renderTimeline(null);
+    fetch('/api/simulate/message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({from:'+15550100200',text:text})})
+    .then(function(r){return r.json();})
+    .then(function(res){
+      btn.disabled=false;lbl.textContent='Send Request';spn.style.display='none';
+      if(res.mandate){updateStatus(res.mandate);if(!isTerminal(res.mandate.state))startPolling(res.mandate.id);}
+      else{setErr(res.error||res.reply||'Something went wrong — try rephrasing.');window.newRequest();}
+    })
+    .catch(function(){
+      btn.disabled=false;lbl.textContent='Send Request';spn.style.display='none';
+      setErr('Could not reach the server. Is it running?');window.newRequest();
+    });
+  };
+
+  document.getElementById('msg').addEventListener('keydown',function(e){
+    if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendRequest();}
+  });
+})();
+</script>
+</body>
+</html>
